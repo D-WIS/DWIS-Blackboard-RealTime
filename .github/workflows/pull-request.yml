@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      - name: Deliberate failure for T-REP-2
+        run: exit 1
       - name: Find the solution
         id: sln
         run: |
