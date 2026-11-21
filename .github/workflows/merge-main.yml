@@ -1,0 +1,75 @@
+name: Merge to main
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: merge-main
+  cancel-in-progress: false
+jobs:
+  build-and-push:
+    name: Build, test and push edge image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Set in the organisation secret store; until they exist the image is built but not pushed.
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      DISPATCH_TOKEN: ${{ secrets.RIG_EDITION_DISPATCH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore DWIS.Blackboard.RealTime.slnx
+      - name: Build
+        run: dotnet build DWIS.Blackboard.RealTime.slnx -c Release --no-restore
+      - name: Test
+        # The unit tests and the in-process server tests; the test against a live semantic service is skipped
+        # here (no stack) and runs in the Tests repository's workflow against the compose stack (M4.4).
+        run: dotnet test DWIS.Blackboard.RealTime.slnx -c Release --no-build --report-trx --results-directory TestResults
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Note when the Docker Hub secrets are missing
+        if: env.DOCKERHUB_USERNAME == ''
+        run: echo "::notice::DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are not set; the image is built and scanned but not pushed."
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v4
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+      - name: Build the image, push sha and edge tags when logged in
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: ${{ env.DOCKERHUB_USERNAME != '' }}
+          load: ${{ env.DOCKERHUB_USERNAME == '' }}
+          tags: |
+            digiwells/dwis.blackboard.realtime:sha-${{ github.sha }}
+            digiwells/dwis.blackboard.realtime:edge
+      - name: Scan the image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: digiwells/dwis.blackboard.realtime:sha-${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Tell the tests repository
+        if: env.DOCKERHUB_USERNAME != '' && env.DISPATCH_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ env.DISPATCH_TOKEN }}
+        run: |
+          gh api repos/D-WIS/DWIS-Blackboard-Tests/dispatches \
+            -f event_type=realtime-edge \
+            -F "client_payload[image]=digiwells/dwis.blackboard.realtime:sha-${{ github.sha }}"

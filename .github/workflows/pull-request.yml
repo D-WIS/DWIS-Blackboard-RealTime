@@ -18,28 +18,50 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - name: Find the solution
-        id: sln
-        run: |
-          f=$(ls *.sln *.slnx 2>/dev/null | head -1 || true)
-          echo "file=$f" >> "$GITHUB_OUTPUT"
-          if [ -z "$f" ]; then echo "No solution yet; nothing to build."; fi
       - name: Restore
-        if: steps.sln.outputs.file != ''
-        run: dotnet restore "${{ steps.sln.outputs.file }}"
+        run: dotnet restore DWIS.Blackboard.RealTime.slnx
       - name: Build
-        if: steps.sln.outputs.file != ''
-        run: dotnet build "${{ steps.sln.outputs.file }}" -c Release --no-restore
+        run: dotnet build DWIS.Blackboard.RealTime.slnx -c Release --no-restore
       - name: Test
-        if: steps.sln.outputs.file != ''
-        run: dotnet test "${{ steps.sln.outputs.file }}" -c Release --no-build --report-trx --results-directory TestResults
+        # The unit tests and the in-process server tests; the test against a live semantic service is skipped
+        # here (no stack) and runs in the Tests repository's workflow against the compose stack (M4.4).
+        run: dotnet test DWIS.Blackboard.RealTime.slnx -c Release --no-build --report-trx --results-directory TestResults
       - name: Upload test results
-        if: always() && steps.sln.outputs.file != ''
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: TestResults
           if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Build the image (not pushed)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: digiwells/dwis.blackboard.realtime:pr-${{ github.run_number }}
+      - name: Scan the image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: digiwells/dwis.blackboard.realtime:pr-${{ github.run_number }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Start the image and check that it serves OPC UA
+        # Without a semantic service: the process must come up, serve its endpoint and keep retrying the service
+        # (R-RT-2); the port answers an OPC UA hello within a few seconds.
+        run: |
+          docker run -d --name realtime -p 48030:48030 digiwells/dwis.blackboard.realtime:pr-${{ github.run_number }}
+          for i in $(seq 1 30); do
+            if (echo > /dev/tcp/127.0.0.1/48030) 2>/dev/null; then echo "port 48030 open after ${i} s"; break; fi
+            sleep 1
+          done
+          (echo > /dev/tcp/127.0.0.1/48030) 2>/dev/null || { echo "port 48030 never opened"; docker logs realtime; exit 1; }
+          docker logs realtime | grep -q "OPC UA server started" || { echo "the server did not log its start"; docker logs realtime; exit 1; }
+          docker logs realtime | grep -q "did not answer the list of manifests" || { echo "the rebuild loop did not report the missing service"; docker logs realtime; exit 1; }
+          docker rm -f realtime
 
   scan:
     name: Trivy filesystem scan
@@ -55,4 +77,3 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
-

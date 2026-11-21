@@ -4,7 +4,7 @@ Part of DWIS Blackboard Rig Edition (GitHub topic `dwis-blackboard-rig-edition`)
 
 **Holds:** the real-time process: `DWIS.RealTime.Core` (no OPC UA dependency), the OPC Foundation adapter, the method façade, the hub role, unit tests, the Dockerfile.
 
-**Produces:** image `digiwells/dwis.blackboard.realtime` (from milestone 4.3).
+**Produces:** image `digiwells/dwis.blackboard.realtime` (`sha-<commit>` and `edge` from every merge to `main`, versioned from tags; milestone 4.3).
 
 **Depends on:** `DWIS-Blackboard-Contracts` (the manifest and report shapes, the configuration layers, the gRPC client of the semantic service); the OPC Foundation stack (`OPCFoundation.NetStandard.Opc.Ua.Server`, the version of the old server).
 
@@ -53,6 +53,14 @@ Against the compose stack of the Tests repository (`FUSEKI_TAG=edge SEMANTIC_TAG
 ```bash
 DWIS_SEMANTIC_ADDRESS=http://127.0.0.1:8081 dotnet test DWIS.Blackboard.RealTime.slnx -c Release --no-build
 ```
+
+### The image
+
+```bash
+docker build -t digiwells/dwis.blackboard.realtime:dev .
+```
+
+The image runs the host as the `app` user with the plain .NET runtime (not ASP.NET: the process serves OPC UA, not HTTP) and keeps ICU, which the OPC Foundation stack needs. It serves `opc.tcp://localhost:48030` by default and talks to `http://semantic:8081`, the compose stack's name for the semantic service; override both with `DWIS__RealTime__EndpointUrl` and `DWIS__RealTime__SemanticAddress`. The application certificate and the trust stores live under `/app/pki` (`DWIS__RealTime__PkiRoot`); mount a volume there to keep the certificate across restarts. The merge workflow builds the image, scans it with Trivy, pushes the `sha-<commit>` and `edge` tags to Docker Hub and tells the Tests repository (`realtime-edge`); the pull request workflow builds and scans it without pushing and starts it once to check that the port answers and that the process keeps retrying a missing semantic service (R-RT-2).
 
 ## How to work here
 
