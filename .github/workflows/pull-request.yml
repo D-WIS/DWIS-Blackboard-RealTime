@@ -51,16 +51,21 @@ jobs:
           exit-code: "1"
       - name: Start the image and check that it serves OPC UA
         # Without a semantic service: the process must come up, serve its endpoint and keep retrying the service
-        # (R-RT-2); the port answers an OPC UA hello within a few seconds.
+        # (R-RT-2). Docker opens the published port at once, so the check waits for the server's own log lines.
         run: |
           docker run -d --name realtime -p 48030:48030 digiwells/dwis.blackboard.realtime:pr-${{ github.run_number }}
-          for i in $(seq 1 30); do
-            if (echo > /dev/tcp/127.0.0.1/48030) 2>/dev/null; then echo "port 48030 open after ${i} s"; break; fi
+          for i in $(seq 1 90); do
+            if docker logs realtime 2>&1 | grep -q "OPC UA server started"; then echo "server up after ${i} s"; break; fi
             sleep 1
           done
-          (echo > /dev/tcp/127.0.0.1/48030) 2>/dev/null || { echo "port 48030 never opened"; docker logs realtime; exit 1; }
-          docker logs realtime | grep -q "OPC UA server started" || { echo "the server did not log its start"; docker logs realtime; exit 1; }
-          docker logs realtime | grep -q "did not answer the list of manifests" || { echo "the rebuild loop did not report the missing service"; docker logs realtime; exit 1; }
+          docker logs realtime 2>&1 | grep -q "OPC UA server started" || { echo "the server did not log its start within 90 s"; docker logs realtime; exit 1; }
+          for i in $(seq 1 30); do
+            if docker logs realtime 2>&1 | grep -q "did not answer the list of manifests"; then break; fi
+            sleep 1
+          done
+          docker logs realtime 2>&1 | grep -q "did not answer the list of manifests" || { echo "the rebuild loop did not report the missing service"; docker logs realtime; exit 1; }
+          (echo > /dev/tcp/127.0.0.1/48030) 2>/dev/null || { echo "port 48030 is not open"; docker logs realtime; exit 1; }
+          docker logs realtime 2>&1 | tail -20
           docker rm -f realtime
 
   scan:
