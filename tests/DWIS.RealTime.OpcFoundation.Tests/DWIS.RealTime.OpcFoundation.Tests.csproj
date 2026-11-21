@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The client calls of the round-trip test use the stack's synchronous API, marked obsolete in 1.5.378; fine for a test. -->
+    <NoWarn>$(NoWarn);CS0618</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/DWIS.RealTime.OpcFoundation/DWIS.RealTime.OpcFoundation.csproj" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Shared/AdapterContractTests.cs" Link="Shared/AdapterContractTests.cs" />
+  </ItemGroup>
+
+</Project>

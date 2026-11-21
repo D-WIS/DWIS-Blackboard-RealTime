@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/DWIS.RealTime.Core/DWIS.RealTime.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The contract tests of the adapter interfaces, shared with the OPC Foundation adapter's tests (T-MOD-5). -->
+    <Compile Include="../Shared/AdapterContractTests.cs" Link="Shared/AdapterContractTests.cs" />
+  </ItemGroup>
+
+</Project>

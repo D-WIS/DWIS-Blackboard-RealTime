@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>The compile-only second adapter (decision D-55, T-MOD-6): implements the three adapter interfaces of Core against no stack at all, so that the build proves nothing from the OPC Foundation stack leaked into them. Nothing runs it.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DWIS.RealTime.Core/DWIS.RealTime.Core.csproj" />
+  </ItemGroup>
+
+</Project>

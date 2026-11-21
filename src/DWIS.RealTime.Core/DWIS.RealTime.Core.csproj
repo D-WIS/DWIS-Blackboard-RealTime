@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>The stack-independent core of the real-time process (specification 3.1, R-MOD-2): the DDHubServer method façade, the two-phase injection over the gRPC contract, the query diff fan-out, the rebuild at start-up; the four adapter interfaces of decision D-54 with no OPC UA type.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Contracts only: no OPC UA assembly, by construction (T-MOD-4 checks it). -->
+    <PackageReference Include="DWIS.Blackboard.Contracts" />
+    <PackageReference Include="DWIS.Blackboard.Configuration" />
+    <PackageReference Include="DWIS.Blackboard.Contracts.Grpc" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+
+</Project>

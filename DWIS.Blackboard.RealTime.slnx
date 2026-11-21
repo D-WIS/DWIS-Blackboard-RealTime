@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DWIS.RealTime.Core/DWIS.RealTime.Core.csproj" />
+    <Project Path="src/DWIS.RealTime.OpcFoundation/DWIS.RealTime.OpcFoundation.csproj" />
+    <Project Path="src/DWIS.RealTime.StubAdapter/DWIS.RealTime.StubAdapter.csproj" />
+    <Project Path="src/DWIS.RealTime.Host/DWIS.RealTime.Host.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DWIS.RealTime.Core.Tests/DWIS.RealTime.Core.Tests.csproj" />
+    <Project Path="tests/DWIS.RealTime.OpcFoundation.Tests/DWIS.RealTime.OpcFoundation.Tests.csproj" />
+  </Folder>
+</Solution>
