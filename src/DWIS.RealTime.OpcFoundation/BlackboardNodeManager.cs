@@ -369,8 +369,11 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
     }
 
     /// <inheritdoc />
-    public NodeAddress AddressFor(string provider, string variableId) =>
-        new(_endpointUrl, Naming.VariablesNamespace(provider), Naming.VariableNodeId(provider, variableId));
+    public NodeAddress AddressFor(string provider, string variableId)
+    {
+        var uri = Naming.VariablesNamespace(provider);
+        return new NodeAddress(_endpointUrl, uri, Server.NamespaceUris.GetIndex(uri) is var index && index >= 0 ? (ushort)index : (ushort)0, Naming.VariableNodeId(provider, variableId));
+    }
 
     /// <summary>The OPC UA data type of one of the seven manifest type names; string for anything else.</summary>
     public static NodeId DataTypeOf(string dataType) => dataType.ToUpperInvariant() switch
@@ -484,7 +487,7 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
                 _queryNodes[clientId] = (client, diff);
             }
         }
-        return new NodeAddress(_endpointUrl, Naming.DictionariesNamespace, diffId);
+        return new NodeAddress(_endpointUrl, Naming.DictionariesNamespace, _dictionaries, diffId);
     }
 
     /// <inheritdoc />

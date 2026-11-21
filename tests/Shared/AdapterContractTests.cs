@@ -29,6 +29,7 @@ public abstract class AdapterContractTests
         address.NamespaceUri.Should().Be("http://ddhub.no/Acme/Variables/");
         address.NodeId.Should().Be("Acme.SPP");
         address.EndpointUrl.Should().StartWith("opc.tcp://");
+        address.NamespaceIndex.Should().BeGreaterThan(0, "the namespace is in the server's table");
         space.AddressFor("Acme", "SPP").Should().Be(address);
         space.ReadValue("Acme", "SPP").Should().NotBeNull().And.Subject.As<TimedValue>().Value.Should().Be(1.5);
     }

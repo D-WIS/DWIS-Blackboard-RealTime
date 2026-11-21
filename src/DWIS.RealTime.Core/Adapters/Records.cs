@@ -24,8 +24,11 @@ public static class VariableDataTypes
     public static bool IsKnown(string dataType) => All.Contains(dataType, StringComparer.OrdinalIgnoreCase);
 }
 
-/// <summary>Where a node lives: what <c>CommitRequest.endpoints</c> records (R-RT-5) and what a client needs to find it.</summary>
-public sealed record NodeAddress(string EndpointUrl, string NamespaceUri, string NodeId);
+/// <summary>
+/// Where a node lives: what <c>CommitRequest.endpoints</c> records (R-RT-5) and what a client needs to find it. The
+/// namespace index is the one the stack gave the namespace URI; the old <c>ManifestInjectionResult</c> carries it.
+/// </summary>
+public sealed record NodeAddress(string EndpointUrl, string NamespaceUri, ushort NamespaceIndex, string NodeId);
 
 /// <summary>A value with its source timestamp.</summary>
 public sealed record TimedValue(object? Value, DateTime SourceTimestamp);
