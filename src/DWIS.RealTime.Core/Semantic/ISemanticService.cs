@@ -23,4 +23,22 @@ public interface ISemanticService
 
     /// <summary>The live manifests with their variables and endpoints, for the rebuild (R-RT-6).</summary>
     Task<ManifestList> ListAsync(CancellationToken cancellationToken);
+
+    /// <summary>Answer a SELECT once (the <c>ResolveQuery</c> façade).</summary>
+    Task<QueryResult> QueryAsync(string sparql, CancellationToken cancellationToken);
+
+    /// <summary>The individuals and sentences of the live description (the <c>GetResources</c> façade).</summary>
+    Task<ResourceFile> GetResourcesAsync(CancellationToken cancellationToken);
+
+    /// <summary>Register a query for an owner (a session id); the full snapshot comes back (D-51).</summary>
+    Task<QuerySnapshot> RegisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken);
+
+    /// <summary>Release an owner's hold on a query; whether the owner held it, and the query's id.</summary>
+    Task<UnregisterResult> UnregisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken);
+
+    /// <summary>A session closed: everything it registered goes; the ids of the queries nobody holds any more.</summary>
+    Task<IReadOnlyList<int>> ReleaseOwnerAsync(string owner, CancellationToken cancellationToken);
+
+    /// <summary>Every diff of every registered query, until the stream ends (D-53); ends by throwing <see cref="SemanticException"/> or by cancellation.</summary>
+    IAsyncEnumerable<QueryDiff> WatchAsync(string watcher, CancellationToken cancellationToken);
 }

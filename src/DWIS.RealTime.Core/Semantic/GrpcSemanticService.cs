@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using DWIS.Blackboard.Contracts.Grpc;
 using DWIS.RealTime.Core.Adapters;
 using Google.Protobuf.WellKnownTypes;
@@ -7,9 +8,9 @@ using Grpc.Net.Client;
 namespace DWIS.RealTime.Core.Semantic;
 
 /// <summary>
-/// The semantic service over gRPC (specification 3.3, D-10, D-50): one channel, a deadline on every call, and the
-/// gRPC status codes mapped to the façade's statuses: the service unreachable, too slow or not ready answers
-/// <see cref="MethodStatus.BadCommunicationError"/>; a refused input <see cref="MethodStatus.BadInvalidArgument"/>.
+/// The semantic service over gRPC (specification 3.3, D-10, D-50): one channel, a deadline on every call but the
+/// watch stream, and the gRPC status codes mapped to the façade's statuses: the service unreachable, too slow or
+/// not ready answers <see cref="MethodStatus.BadCommunicationError"/>; a refused input <see cref="MethodStatus.BadInvalidArgument"/>.
 /// </summary>
 public sealed class GrpcSemanticService : ISemanticService, IDisposable
 {
@@ -46,6 +47,51 @@ public sealed class GrpcSemanticService : ISemanticService, IDisposable
     /// <inheritdoc />
     public Task<ManifestList> ListAsync(CancellationToken cancellationToken) =>
         Call(() => _client.ListManifestsAsync(new Empty(), Options(cancellationToken)).ResponseAsync, "ListManifests");
+
+    /// <inheritdoc />
+    public Task<QueryResult> QueryAsync(string sparql, CancellationToken cancellationToken) =>
+        Call(() => _client.QueryAsync(new SparqlRequest { Query = sparql }, Options(cancellationToken)).ResponseAsync, "Query");
+
+    /// <inheritdoc />
+    public Task<ResourceFile> GetResourcesAsync(CancellationToken cancellationToken) =>
+        Call(() => _client.GetResourcesAsync(new Empty(), Options(cancellationToken)).ResponseAsync, "GetResources");
+
+    /// <inheritdoc />
+    public Task<QuerySnapshot> RegisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken) =>
+        Call(() => _client.RegisterQueryAsync(new RegisterRequest { Query = sparql, Owner = owner }, Options(cancellationToken)).ResponseAsync, "RegisterQuery");
+
+    /// <inheritdoc />
+    public Task<UnregisterResult> UnregisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken) =>
+        Call(() => _client.UnregisterQueryAsync(new UnregisterRequest { Query = sparql, Owner = owner }, Options(cancellationToken)).ResponseAsync, "UnregisterQuery");
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<int>> ReleaseOwnerAsync(string owner, CancellationToken cancellationToken) =>
+        (await Call(() => _client.ReleaseOwnerAsync(new OwnerRef { Owner = owner }, Options(cancellationToken)).ResponseAsync, "ReleaseOwner").ConfigureAwait(false)).QueryIds.ToList();
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<QueryDiff> WatchAsync(string watcher, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        // No deadline: the stream lives as long as the service and the connection do.
+        using var stream = _client.WatchQueries(new WatchRequest { Watcher = watcher }, cancellationToken: cancellationToken);
+        var reader = stream.ResponseStream;
+        while (true)
+        {
+            bool more;
+            try
+            {
+                more = await reader.MoveNext(cancellationToken).ConfigureAwait(false);
+            }
+            catch (RpcException e)
+            {
+                throw new SemanticException(StatusOf(e.StatusCode), $"WatchQueries: {e.Status.Detail} ({e.StatusCode})", e);
+            }
+            if (!more)
+            {
+                yield break;
+            }
+            yield return reader.Current;
+        }
+    }
 
     private static async Task<T> Call<T>(Func<Task<T>> call, string name)
     {
