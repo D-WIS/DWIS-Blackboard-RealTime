@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <Description>The real-time process host: configuration, logging, the lab security profile, start-up (specification 3.1).</Description>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AssemblyName>DWIS.RealTime.Host</AssemblyName>
+    <RootNamespace>DWIS.RealTime.Host</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DWIS.RealTime.Core/DWIS.RealTime.Core.csproj" />
+    <ProjectReference Include="../DWIS.RealTime.OpcFoundation/DWIS.RealTime.OpcFoundation.csproj" />
+    <PackageReference Include="DWIS.Blackboard.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+</Project>

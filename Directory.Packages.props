@@ -1,0 +1,33 @@
+<Project>
+
+  <!-- Central package versions (one place to bump; Dependabot edits this file). -->
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The contracts: the manifest and report shapes, the configuration layers, the gRPC client of the semantic service. -->
+    <PackageVersion Include="DWIS.Blackboard.Contracts" Version="1.0.0-edge.7" />
+    <PackageVersion Include="DWIS.Blackboard.Configuration" Version="1.0.0-edge.7" />
+    <PackageVersion Include="DWIS.Blackboard.Contracts.Grpc" Version="1.0.0-edge.7" />
+    <PackageVersion Include="Grpc.Net.Client" Version="2.85.0" />
+    <!-- The OPC Foundation stack, the version of the old server (decision D-07); only the adapter and the host reference it. -->
+    <PackageVersion Include="OPCFoundation.NetStandard.Opc.Ua.Server" Version="1.5.378.156" />
+    <PackageVersion Include="OPCFoundation.NetStandard.Opc.Ua.Configuration" Version="1.5.378.156" />
+    <PackageVersion Include="OPCFoundation.NetStandard.Opc.Ua.Client" Version="1.5.378.156" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.15" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Tests: xUnit v3 on the Microsoft Testing Platform, FluentAssertions 7 (Appendix G). -->
+    <PackageVersion Include="xunit.v3" Version="4.0.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.3" />
+    <PackageVersion Include="FluentAssertions" Version="7.2.2" />
+  </ItemGroup>
+
+</Project>

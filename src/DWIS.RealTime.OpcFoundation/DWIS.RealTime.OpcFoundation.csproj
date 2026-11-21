@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>The OPC Foundation adapter of the real-time process (specification 3.1, decision D-07): the three adapter interfaces of Core over an OPC Foundation server, the DDHubServer object with its nine methods, and the server host helpers.</Description>
+    <NoWarn>$(NoWarn);CA1031</NoWarn> <!-- the method dispatch catches every exception of a handler and answers a status, as a server must -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DWIS.RealTime.Core/DWIS.RealTime.Core.csproj" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+</Project>
