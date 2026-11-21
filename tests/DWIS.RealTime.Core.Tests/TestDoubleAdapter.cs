@@ -136,7 +136,7 @@ public sealed class TestDoubleAdapter : IAddressSpace, IMethodHost, IQueryNodes
     public NodeAddress CreateQueryNodes(int queryId, SessionId session)
     {
         lock (_gate) { QueryNodes.TryAdd((queryId, session), null); }
-        return new NodeAddress(EndpointUrl, Naming.DictionariesNamespace, 2, Naming.QueryDiffNodeId(queryId, session));
+        return new NodeAddress(EndpointUrl, Naming.ServerNamespace, 2, Naming.QueryDiffNodeId(queryId, session));
     }
 
     /// <inheritdoc />

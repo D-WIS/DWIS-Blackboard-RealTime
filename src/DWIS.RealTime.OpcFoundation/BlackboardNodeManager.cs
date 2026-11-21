@@ -20,7 +20,7 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
 
     private readonly ILogger _logger;
     private readonly string _endpointUrl;
-    private readonly ushort _dictionaries;
+    private readonly ushort _namespaceIndex;
     private readonly HashSet<ushort> _claimedIndexes = [];
     private readonly List<string> _claimedUris = [];
     private readonly Dictionary<string, MethodHandler> _handlers = [];
@@ -34,17 +34,17 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
 
     /// <summary>Creates the manager; the server calls <see cref="CreateAddressSpace"/> when it starts.</summary>
     public BlackboardNodeManager(IServerInternal server, ApplicationConfiguration configuration, string endpointUrl, ILogger<BlackboardNodeManager>? logger = null)
-        : base(server, configuration, Naming.DictionariesNamespace)
+        : base(server, configuration, Naming.ServerNamespace)
     {
         _endpointUrl = endpointUrl;
         _logger = logger ?? NullLogger<BlackboardNodeManager>.Instance;
-        _dictionaries = NamespaceIndexes[0];
-        _claimedIndexes.Add(_dictionaries);
-        _claimedUris.Add(Naming.DictionariesNamespace);
+        _namespaceIndex = NamespaceIndexes[0];
+        _claimedIndexes.Add(_namespaceIndex);
+        _claimedUris.Add(Naming.ServerNamespace);
     }
 
-    /// <summary>The namespace index the server gave <see cref="Naming.DictionariesNamespace"/> (clients look it up by name, D-56).</summary>
-    public ushort DictionariesIndex => _dictionaries;
+    /// <summary>The namespace index the server gave <see cref="Naming.ServerNamespace"/> (clients look it up by name, D-56).</summary>
+    public ushort ServerNamespaceIndex => _namespaceIndex;
 
     /// <inheritdoc />
     public override void CreateAddressSpace(IDictionary<NodeId, IList<IReference>> externalReferences)
@@ -53,8 +53,8 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
         {
             _server = new BaseObjectState(null)
             {
-                NodeId = new NodeId(DDHubMethods.ObjectName, _dictionaries),
-                BrowseName = new QualifiedName(DDHubMethods.ObjectName, _dictionaries),
+                NodeId = new NodeId(DDHubMethods.ObjectName, _namespaceIndex),
+                BrowseName = new QualifiedName(DDHubMethods.ObjectName, _namespaceIndex),
                 DisplayName = DDHubMethods.ObjectName,
                 Description = "The DWIS Blackboard (Rig Edition): inject manifests, resolve and register queries.",
                 TypeDefinitionId = ObjectTypeIds.BaseObjectType,
@@ -76,10 +76,10 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
             {
                 CreateMethod(_server, declaration);
             }
-            _providers = CreateFolder(_server, Naming.ProvidersFolder, _dictionaries);
-            _queries = CreateFolder(_server, QueriesFolder, _dictionaries);
+            _providers = CreateFolder(_server, Naming.ProvidersFolder, _namespaceIndex);
+            _queries = CreateFolder(_server, QueriesFolder, _namespaceIndex);
         }
-        Log.AddressSpaceCreated(_logger, _dictionaries, DDHubMethods.All.Count);
+        Log.AddressSpaceCreated(_logger, _namespaceIndex, DDHubMethods.All.Count);
     }
 
     private FolderState CreateFolder(NodeState parent, string name, ushort namespaceIndex)
@@ -102,8 +102,8 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
     {
         var variable = new BaseDataVariableState(parent)
         {
-            NodeId = new NodeId(name, _dictionaries),
-            BrowseName = new QualifiedName(name, _dictionaries),
+            NodeId = new NodeId(name, _namespaceIndex),
+            BrowseName = new QualifiedName(name, _namespaceIndex),
             DisplayName = name,
             Description = description,
             TypeDefinitionId = VariableTypeIds.BaseDataVariableType,
@@ -125,8 +125,8 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
     {
         var method = new MethodState(parent)
         {
-            NodeId = new NodeId(declaration.Name, _dictionaries),
-            BrowseName = new QualifiedName(declaration.Name, _dictionaries),
+            NodeId = new NodeId(declaration.Name, _namespaceIndex),
+            BrowseName = new QualifiedName(declaration.Name, _namespaceIndex),
             DisplayName = declaration.DisplayName,
             ReferenceTypeId = ReferenceTypeIds.HasComponent,
             Executable = true,
@@ -148,7 +148,7 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
     private PropertyState<Argument[]> ArgumentsProperty(MethodState method, string nodeId, string browseName, IReadOnlyList<MethodArgument> arguments) =>
         new(method)
         {
-            NodeId = new NodeId(nodeId, _dictionaries),
+            NodeId = new NodeId(nodeId, _namespaceIndex),
             BrowseName = new QualifiedName(browseName, 0),
             DisplayName = browseName,
             TypeDefinitionId = VariableTypeIds.PropertyType,
@@ -457,8 +457,8 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
             {
                 var client = new BaseObjectState(_queries)
                 {
-                    NodeId = new NodeId(clientId, _dictionaries),
-                    BrowseName = new QualifiedName(clientId, _dictionaries),
+                    NodeId = new NodeId(clientId, _namespaceIndex),
+                    BrowseName = new QualifiedName(clientId, _namespaceIndex),
                     DisplayName = clientId,
                     TypeDefinitionId = ObjectTypeIds.BaseObjectType,
                     ReferenceTypeId = ReferenceTypeIds.Organizes,
@@ -468,8 +468,8 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
                 AddPredefinedNode(SystemContext, client);
                 var diff = new BaseDataVariableState(client)
                 {
-                    NodeId = new NodeId(diffId, _dictionaries),
-                    BrowseName = new QualifiedName(diffId, _dictionaries),
+                    NodeId = new NodeId(diffId, _namespaceIndex),
+                    BrowseName = new QualifiedName(diffId, _namespaceIndex),
                     DisplayName = diffId,
                     TypeDefinitionId = VariableTypeIds.BaseDataVariableType,
                     ReferenceTypeId = ReferenceTypeIds.HasComponent,
@@ -487,7 +487,7 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
                 _queryNodes[clientId] = (client, diff);
             }
         }
-        return new NodeAddress(_endpointUrl, Naming.DictionariesNamespace, _dictionaries, diffId);
+        return new NodeAddress(_endpointUrl, Naming.ServerNamespace, _namespaceIndex, diffId);
     }
 
     /// <inheritdoc />

@@ -119,7 +119,7 @@ public abstract class AdapterContractTests
         var address = nodes.CreateQueryNodes(7, session);
         nodes.CreateQueryNodes(7, session); // twice is harmless
 
-        address.NamespaceUri.Should().Be(Naming.DictionariesNamespace);
+        address.NamespaceUri.Should().Be(Naming.ServerNamespace);
         address.NodeId.Should().Be(Naming.QueryDiffNodeId(7, session)).And.StartWith("QueryDiff7_");
         nodes.WriteDiff(7, session, "{\"QueryID\":\"QueryClient7\",\"Added\":[],\"Removed\":[]}");
         nodes.DeleteQueryNodes(7, session);
