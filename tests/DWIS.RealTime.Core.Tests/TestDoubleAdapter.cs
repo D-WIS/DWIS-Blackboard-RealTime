@@ -111,8 +111,14 @@ public sealed class TestDoubleAdapter : IAddressSpace, IMethodHost, IQueryNodes
     }
 
     /// <inheritdoc />
-    public NodeAddress AddressFor(string provider, string variableId) =>
-        new(EndpointUrl, Naming.VariablesNamespace(provider), Naming.VariableNodeId(provider, variableId));
+    public NodeAddress AddressFor(string provider, string variableId)
+    {
+        lock (_gate)
+        {
+            var order = Providers.IndexOf(provider);
+            return new NodeAddress(EndpointUrl, Naming.VariablesNamespace(provider), (ushort)(order < 0 ? 0 : 3 + order), Naming.VariableNodeId(provider, variableId));
+        }
+    }
 
     /// <inheritdoc />
     public void RegisterMethod(string name, MethodHandler handler)
@@ -130,7 +136,7 @@ public sealed class TestDoubleAdapter : IAddressSpace, IMethodHost, IQueryNodes
     public NodeAddress CreateQueryNodes(int queryId, SessionId session)
     {
         lock (_gate) { QueryNodes.TryAdd((queryId, session), null); }
-        return new NodeAddress(EndpointUrl, Naming.DictionariesNamespace, Naming.QueryDiffNodeId(queryId, session));
+        return new NodeAddress(EndpointUrl, Naming.DictionariesNamespace, 2, Naming.QueryDiffNodeId(queryId, session));
     }
 
     /// <inheritdoc />

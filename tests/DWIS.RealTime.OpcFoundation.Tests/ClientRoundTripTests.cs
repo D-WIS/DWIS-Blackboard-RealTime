@@ -25,7 +25,7 @@ public sealed class ClientRoundTripTests : IClassFixture<ServerFixture>, IAsyncL
     public async ValueTask InitializeAsync()
     {
         var adapter = _server.NodeManager;
-        _core = new RealTimeCore(adapter, adapter, adapter, new RealTimeOptions { EndpointUrl = _server.EndpointUrl });
+        _core = new RealTimeCore(adapter, adapter, adapter, options: new RealTimeOptions { EndpointUrl = _server.EndpointUrl, RetrySeconds = 1 });
         _server.Host.Server.SessionEvents = _core;
         await _core.StartAsync(TestContext.Current.CancellationToken);
 
@@ -47,6 +47,10 @@ public sealed class ClientRoundTripTests : IClassFixture<ServerFixture>, IAsyncL
         {
             await _session.CloseAsync();
             _session.Dispose();
+        }
+        if (_core is not null)
+        {
+            await _core.DisposeAsync();
         }
     }
 
@@ -104,6 +108,7 @@ public sealed class ClientRoundTripTests : IClassFixture<ServerFixture>, IAsyncL
         var address = adapter.CreateVariable("Wire", new VariableSpec("Flow", "double", 0, [], "3.5", "Flow_validitySignal"));
         await _session.FetchNamespaceTablesAsync(TestContext.Current.CancellationToken); // the provider namespace was claimed after the session opened
         var index = (ushort)_session.NamespaceUris.GetIndex(address.NamespaceUri);
+        index.Should().Be(address.NamespaceIndex, "the adapter reports the index the client sees");
         var nodeId = new NodeId(address.NodeId, index);
 
         _session.ReadValue(nodeId).Value.Should().Be(3.5);

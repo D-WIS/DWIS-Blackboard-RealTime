@@ -50,16 +50,27 @@ public sealed class RealTimeCoreTests
     }
 
     [Fact]
-    public async Task In_milestone_4_0_every_other_method_answers_not_supported_yet()
+    public async Task Until_milestone_4_2_the_query_methods_answer_not_supported()
     {
         var core = NewCore();
         await core.StartAsync(TestContext.Current.CancellationToken);
 
-        foreach (var name in new[] { DDHubMethods.Inject, DDHubMethods.Update, DDHubMethods.Delete, DDHubMethods.RegisterQuery, DDHubMethods.UnregisterQuery, DDHubMethods.ResolveQuery })
+        foreach (var name in new[] { DDHubMethods.RegisterQuery, DDHubMethods.UnregisterQuery, DDHubMethods.ResolveQuery })
         {
             _double.Call(name, new SessionId("s"), "{}").Status.Should().Be(MethodStatus.BadNotSupported, name);
         }
         _double.Call(DDHubMethods.GetResources, new SessionId("s")).Status.Should().Be(MethodStatus.BadNotSupported);
+    }
+
+    [Fact]
+    public async Task Without_a_semantic_service_the_injection_methods_answer_a_communication_error()
+    {
+        var core = NewCore();
+        await core.StartAsync(TestContext.Current.CancellationToken);
+
+        _double.Call(DDHubMethods.Inject, new SessionId("s"), "{\"ManifestName\":\"m\",\"Provider\":{\"Name\":\"p\"}}").Status.Should().Be(MethodStatus.BadCommunicationError);
+        core.Rebuilt.Should().BeFalse();
+        await core.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]

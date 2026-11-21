@@ -1,4 +1,5 @@
 using DWIS.RealTime.Core;
+using DWIS.RealTime.Core.Semantic;
 using DWIS.RealTime.OpcFoundation;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -13,13 +14,14 @@ public sealed class HostSettings
     public string PkiRoot { get; set; } = "";
 }
 
-/// <summary>Starts the OPC UA server, then Core over its adapter; stops both in the reverse order.</summary>
-public sealed class RealTimeService : IHostedService
+/// <summary>Starts the OPC UA server, then Core over its adapter and the gRPC client of the semantic service; stops both in the reverse order.</summary>
+public sealed class RealTimeService : IHostedService, IAsyncDisposable
 {
     private readonly RealTimeOptions _options;
     private readonly HostSettings _host;
     private readonly ILoggerFactory _loggers;
     private ServerHost? _server;
+    private GrpcSemanticService? _semantic;
     private RealTimeCore? _core;
 
     /// <summary>Creates the service from the configuration.</summary>
@@ -35,7 +37,8 @@ public sealed class RealTimeService : IHostedService
     {
         _server = await ServerHost.StartAsync(_options.EndpointUrl, string.IsNullOrWhiteSpace(_host.PkiRoot) ? null : _host.PkiRoot, _loggers, cancellationToken).ConfigureAwait(false);
         var adapter = _server.NodeManager;
-        _core = new RealTimeCore(adapter, adapter, adapter, _options, _loggers.CreateLogger<RealTimeCore>());
+        _semantic = new GrpcSemanticService(_options.SemanticAddress, TimeSpan.FromSeconds(Math.Max(1, _options.DeadlineSeconds)));
+        _core = new RealTimeCore(adapter, adapter, adapter, _semantic, _options, _loggers);
         _server.Server.SessionEvents = _core;
         await _core.StartAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -50,6 +53,24 @@ public sealed class RealTimeService : IHostedService
         if (_server is not null)
         {
             await _server.DisposeAsync().ConfigureAwait(false);
+            _server = null;
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_core is not null)
+        {
+            await _core.DisposeAsync().ConfigureAwait(false);
+            _core = null;
+        }
+        _semantic?.Dispose();
+        _semantic = null;
+        if (_server is not null)
+        {
+            await _server.DisposeAsync().ConfigureAwait(false);
+            _server = null;
         }
     }
 }

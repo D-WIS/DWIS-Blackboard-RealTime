@@ -10,7 +10,9 @@ Part of DWIS Blackboard Rig Edition (GitHub topic `dwis-blackboard-rig-edition`)
 
 ## Status
 
-Milestone 4.0 (November 2026): the skeleton. The `DDHubServer` object with its nine methods and two diagnostics is served with the argument declarations of the old server; every method answers a status (`BadNotSupported` until M4.1 and M4.2 fill the injection and the query sides); the four adapter interfaces of decision D-54 are frozen with a test double and a contract test each; the compile-only stub adapter of D-55 builds. The host runs the lab security profile only (a `None` endpoint, anonymous users): not for production.
+Milestone 4.0 (November 2026): the skeleton. The `DDHubServer` object with its nine methods and two diagnostics is served with the argument declarations of the old server; the four adapter interfaces of decision D-54 are frozen with a test double and a contract test each; the compile-only stub adapter of D-55 builds. The host runs the lab security profile only (a `None` endpoint, anonymous users): not for production.
+
+Milestone 4.1: the injection side. `Inject` and `Update` run the two-phase injection over the gRPC contract (prepare, create the provider folder and the variables with their validity booleans, commit with their addresses); the same content again is `already_live` and creates nothing; a failed commit keeps the nodes of the live version (D-52) and aborts; `Delete` removes the manifest from the service, then its variables, and the provider folder when it was the provider's last. The answer of `Inject` and `Update` is the `ManifestInjectionResult` JSON of the old API; `Delete` answers a boolean. At start-up Core asks the service for its manifests and creates what is missing, asks again until the service answers, then once more (R-RT-6, D-52). The service unreachable or too slow answers `BadCommunicationError` within the deadline; values keep flowing (R-RT-1, R-RT-2). The query side (`ResolveQuery`, `GetResources`, `RegisterQuery`, `UnregisterQuery`) comes with M4.2; `Register` and `Resolve` stay `BadNotSupported` (R-BC-2).
 
 ## Layout
 
@@ -18,12 +20,12 @@ One solution, `DWIS.Blackboard.RealTime.slnx`, .NET 10, with the split of specif
 
 | Project | Responsibility |
 |---|---|
-| `src/DWIS.RealTime.Core` | the façade logic over the four adapter interfaces (`IAddressSpace`, `IMethodHost`, `IQueryNodes` implemented by an adapter; `ISessionEvents` implemented by Core), the names clients depend on (`Naming`), the method declarations (`DDHubMethods`), the settings; references the contracts only, never an OPC UA assembly (a test checks it) |
+| `src/DWIS.RealTime.Core` | the façade logic over the four adapter interfaces (`IAddressSpace`, `IMethodHost`, `IQueryNodes` implemented by an adapter; `ISessionEvents` implemented by Core), the names clients depend on (`Naming`), the method declarations (`DDHubMethods`), the settings; `Semantic/`: the service as Core sees it (`ISemanticService`, the gRPC client with deadlines and the status mapping); `Injection/`: the manifest key, the table of live manifests, the injector (two-phase injection, delete, rebuild), the result JSON; references the contracts only, never an OPC UA assembly (a test checks it) |
 | `src/DWIS.RealTime.OpcFoundation` | the adapter for the OPC Foundation stack: `BlackboardNodeManager` (the three interfaces over a node manager; the `DDHubServer` object, provider folders and variables with their validity booleans, query nodes), `BlackboardServer` (the server with the session hooks), `ServerHost` (start and stop with the lab profile, the configuration built in code) |
 | `src/DWIS.RealTime.StubAdapter` | the compile-only second adapter (D-55, T-MOD-6): the three interfaces with no stack behind them; the outline for an adapter to another stack |
 | `src/DWIS.RealTime.Host` | the process: the five configuration layers of specification section 8 (`RealTime:SemanticAddress`, `RealTime:DeadlineSeconds`, `RealTime:EndpointUrl`, `RealTime:PkiRoot`), logging, the server, Core |
-| `tests/DWIS.RealTime.Core.Tests` | the test double adapter, Core's behaviour against it, the no-OPC-UA check (T-MOD-4), the contract tests against the double (T-MOD-5) |
-| `tests/DWIS.RealTime.OpcFoundation.Tests` | the same contract tests against the adapter on an in-process server, and a client round trip over the wire: the object found by its namespace name (D-56), the methods and their declarations, a call answered with a status, a variable read and written |
+| `tests/DWIS.RealTime.Core.Tests` | the test double adapter and a fake semantic service in memory, Core's behaviour against them (the injection scenarios of M4.1), the no-OPC-UA check (T-MOD-4), the contract tests against the double (T-MOD-5) |
+| `tests/DWIS.RealTime.OpcFoundation.Tests` | the same contract tests against the adapter on an in-process server; a client round trip over the wire: the object found by its namespace name (D-56), the methods and their declarations, a call answered with a status, a variable read and written; and, only when `DWIS_SEMANTIC_ADDRESS` names a running semantic service, an inject and a delete over the wire through that service |
 | `tests/Shared/AdapterContractTests.cs` | the contract tests, one source file compiled into both test projects; a company with another stack runs them against its adapter |
 
 Shared settings live in `Directory.Build.props` (nullable, analyzers, warnings as errors, .NET 10; globalization is not invariant because the OPC Foundation stack needs named cultures) and `Directory.Packages.props` (central package versions). Tests use xUnit v3 on the Microsoft Testing Platform (opt-in in `global.json`) with FluentAssertions 7.
@@ -42,7 +44,13 @@ dotnet test DWIS.Blackboard.RealTime.slnx -c Release --no-build --report-trx --r
 dotnet run --project src/DWIS.RealTime.Host -- --RealTime:EndpointUrl=opc.tcp://localhost:48030 --RealTime:SemanticAddress=http://localhost:8081
 ```
 
-The host serves `opc.tcp://localhost:48030` by default, the old server's address, so the samples connect unchanged. The OPC UA stack keeps its application certificate and stores under its default folder, or under `RealTime:PkiRoot`.
+The host serves `opc.tcp://localhost:48030` by default, the old server's address, so the samples connect unchanged, and talks to the semantic service at `RealTime:SemanticAddress` (`http://semantic:8081` by default, the compose stack's name; `http://localhost:8081` from the host machine) with `RealTime:DeadlineSeconds` (30) on every call and `RealTime:RetrySeconds` (5) between the attempts to list its manifests at start-up. The OPC UA stack keeps its application certificate and stores under its default folder, or under `RealTime:PkiRoot`.
+
+Against the compose stack of the Tests repository (`FUSEKI_TAG=edge SEMANTIC_TAG=edge docker compose -f compose/compose.yaml up -d` there, then its vocabulary loader), the live test runs with:
+
+```bash
+DWIS_SEMANTIC_ADDRESS=http://127.0.0.1:8081 dotnet test DWIS.Blackboard.RealTime.slnx -c Release --no-build
+```
 
 ## How to work here
 
