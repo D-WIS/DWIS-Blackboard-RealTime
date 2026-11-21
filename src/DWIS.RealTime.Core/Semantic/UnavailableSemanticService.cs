@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using DWIS.Blackboard.Contracts.Grpc;
 using DWIS.RealTime.Core.Adapters;
 
@@ -22,4 +23,30 @@ public sealed class UnavailableSemanticService : ISemanticService
 
     /// <inheritdoc />
     public Task<ManifestList> ListAsync(CancellationToken cancellationToken) => throw Down();
+
+    /// <inheritdoc />
+    public Task<QueryResult> QueryAsync(string sparql, CancellationToken cancellationToken) => throw Down();
+
+    /// <inheritdoc />
+    public Task<ResourceFile> GetResourcesAsync(CancellationToken cancellationToken) => throw Down();
+
+    /// <inheritdoc />
+    public Task<QuerySnapshot> RegisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken) => throw Down();
+
+    /// <inheritdoc />
+    public Task<UnregisterResult> UnregisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken) => throw Down();
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<int>> ReleaseOwnerAsync(string owner, CancellationToken cancellationToken) => throw Down();
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<QueryDiff> WatchAsync(string watcher, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask.ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        throw Down();
+#pragma warning disable CS0162 // unreachable: the iterator needs a yield to be one
+        yield break;
+#pragma warning restore CS0162
+    }
 }

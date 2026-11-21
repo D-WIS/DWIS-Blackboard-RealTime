@@ -50,16 +50,17 @@ public sealed class RealTimeCoreTests
     }
 
     [Fact]
-    public async Task Until_milestone_4_2_the_query_methods_answer_not_supported()
+    public async Task Without_a_semantic_service_the_query_methods_answer_a_communication_error()
     {
         var core = NewCore();
         await core.StartAsync(TestContext.Current.CancellationToken);
 
         foreach (var name in new[] { DDHubMethods.RegisterQuery, DDHubMethods.UnregisterQuery, DDHubMethods.ResolveQuery })
         {
-            _double.Call(name, new SessionId("s"), "{}").Status.Should().Be(MethodStatus.BadNotSupported, name);
+            _double.Call(name, new SessionId("s"), "SELECT * WHERE { ?s ?p ?o }").Status.Should().Be(MethodStatus.BadCommunicationError, name);
         }
-        _double.Call(DDHubMethods.GetResources, new SessionId("s")).Status.Should().Be(MethodStatus.BadNotSupported);
+        _double.Call(DDHubMethods.GetResources, new SessionId("s")).Status.Should().Be(MethodStatus.BadCommunicationError);
+        await core.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]

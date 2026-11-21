@@ -1,5 +1,6 @@
 using DWIS.RealTime.Core.Adapters;
 using DWIS.RealTime.Core.Injection;
+using DWIS.RealTime.Core.Queries;
 using DWIS.RealTime.Core.Semantic;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,15 +9,14 @@ namespace DWIS.RealTime.Core;
 
 /// <summary>
 /// The façade logic of the real-time process (specification 3.1): registers the nine <c>DDHubServer</c> method
-/// handlers with the adapter, runs the injection side over the semantic service (M4.1), rebuilds the address space
-/// from the service at start-up and once more after it (R-RT-6, D-52), keeps the diagnostics, and hears about
-/// sessions. The query side comes with M4.2.
+/// handlers with the adapter, runs the injection side (M4.1) and the query side (M4.2) over the semantic service,
+/// rebuilds the address space from the service at start-up and once more after it (R-RT-6, D-52), keeps one watch
+/// stream open for the query diffs (D-53), keeps the diagnostics, and hears about sessions.
 /// </summary>
 public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
 {
     private readonly IAddressSpace _addressSpace;
     private readonly IMethodHost _methods;
-    private readonly IQueryNodes _queryNodes;
     private readonly ISemanticService _semantic;
     private readonly RealTimeOptions _options;
     private readonly ILogger _logger;
@@ -24,18 +24,19 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
     private readonly Lock _gate = new();
     private readonly CancellationTokenSource _stopping = new();
     private Task? _rebuild;
+    private Task? _watch;
 
     /// <summary>Creates the core over one adapter (its three interfaces may be one object, as the OPC Foundation adapter is) and the semantic service.</summary>
     public RealTimeCore(IAddressSpace addressSpace, IMethodHost methods, IQueryNodes queryNodes, ISemanticService? semantic = null, RealTimeOptions? options = null, ILoggerFactory? loggers = null)
     {
         _addressSpace = addressSpace;
         _methods = methods;
-        _queryNodes = queryNodes;
         _semantic = semantic ?? new UnavailableSemanticService();
         _options = options ?? new RealTimeOptions();
         _logger = loggers?.CreateLogger<RealTimeCore>() ?? NullLogger<RealTimeCore>.Instance;
         Live = new LiveManifests();
         Injector = new Injector(_addressSpace, _semantic, Live, loggers?.CreateLogger<Injector>());
+        Queries = new QueryFacade(queryNodes, methods, _semantic, loggers?.CreateLogger<QueryFacade>());
     }
 
     /// <summary>The settings in force.</summary>
@@ -47,6 +48,9 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
     /// <summary>The injection side of the façade.</summary>
     public Injector Injector { get; }
 
+    /// <summary>The query side of the façade.</summary>
+    public QueryFacade Queries { get; }
+
     /// <summary>True once the first rebuild from the service succeeded (the address space reflects the service).</summary>
     public bool Rebuilt { get; private set; }
 
@@ -57,9 +61,9 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
     }
 
     /// <summary>
-    /// Registers the nine method handlers, sets the diagnostics to zero, and starts the rebuild: the list of the
-    /// service's manifests, taken again every <see cref="RealTimeOptions.RetrySeconds"/> until the service answers,
-    /// then once more (D-52 rule 2: a commit that landed while the process was down). Call once the server is up.
+    /// Registers the nine method handlers, sets the diagnostics to zero, starts the rebuild (the list of the service's
+    /// manifests, taken again every <see cref="RealTimeOptions.RetrySeconds"/> until the service answers, then once
+    /// more: D-52 rule 2) and the watch stream. Call once the server is up.
     /// </summary>
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -71,17 +75,17 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
         _methods.SetDiagnostic(DDHubMethods.RegisteredQueryCount, 0);
         _methods.SetDiagnostic(DDHubMethods.RegisteredQuerySubscriptionCount, 0);
         Log.Started(_logger, DDHubMethods.All.Count, _options.SemanticAddress, _options.EndpointUrl);
-        _rebuild = RebuildLoopAsync(_stopping.Token);
-        _ = _queryNodes;
+        var retry = TimeSpan.FromSeconds(Math.Max(1, _options.RetrySeconds));
+        _rebuild = RebuildLoopAsync(retry, _stopping.Token);
+        _watch = Queries.WatchLoopAsync(retry, _stopping.Token);
         return Task.CompletedTask;
     }
 
     /// <summary>Waits for the rebuild to complete (tests and the host's readiness).</summary>
     public Task WhenRebuiltAsync() => _rebuild ?? Task.CompletedTask;
 
-    private async Task RebuildLoopAsync(CancellationToken cancellationToken)
+    private async Task RebuildLoopAsync(TimeSpan delay, CancellationToken cancellationToken)
     {
-        var delay = TimeSpan.FromSeconds(Math.Max(1, _options.RetrySeconds));
         var listed = 0;
         while (listed < 2 && !cancellationToken.IsCancellationRequested)
         {
@@ -111,14 +115,17 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
         }
     }
 
-    /// <summary>Stops the core: ends the rebuild loop (M4.2 ends the watch stream).</summary>
+    /// <summary>Stops the core: ends the rebuild loop and the watch stream.</summary>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         await _stopping.CancelAsync().ConfigureAwait(false);
-        if (_rebuild is not null)
+        foreach (var task in new[] { _rebuild, _watch })
         {
-            try { await _rebuild.ConfigureAwait(false); } catch (OperationCanceledException) { }
+            if (task is not null)
+            {
+                try { await task.ConfigureAwait(false); } catch (OperationCanceledException) { }
+            }
         }
         Log.Stopped(_logger);
     }
@@ -138,23 +145,48 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
         {
             return MethodResult.Fail(MethodStatus.BadInvalidArgument);
         }
+        // The stack calls the handler on its own thread and waits; a call is one or two round trips to the service,
+        // the old server's behaviour too, and the variable paths are not involved (R-RT-1).
+        var token = _stopping.Token;
         switch (declaration.Name)
         {
             case DDHubMethods.Inject:
             case DDHubMethods.Update:
             {
-                // The stack calls the handler on its own thread and waits; the injection is one call to the service after
-                // another, so blocking here is the old server's behaviour too, and the variable paths are not involved (R-RT-1).
-                var outcome = Injector.InjectAsync(input[0], _stopping.Token).GetAwaiter().GetResult();
+                var outcome = Injector.InjectAsync(input[0], token).GetAwaiter().GetResult();
                 return outcome.Status == MethodStatus.Good ? MethodResult.Good(outcome.ResultJson) : MethodResult.Fail(outcome.Status);
             }
             case DDHubMethods.Delete:
             {
-                var outcome = Injector.DeleteAsync(input[0], _stopping.Token).GetAwaiter().GetResult();
+                var outcome = Injector.DeleteAsync(input[0], token).GetAwaiter().GetResult();
                 return outcome.Status == MethodStatus.Good ? MethodResult.Good(outcome.Removed) : MethodResult.Fail(outcome.Status);
             }
+            case DDHubMethods.ResolveQuery:
+            {
+                var (status, json) = Queries.ResolveAsync(input[0], token).GetAwaiter().GetResult();
+                return status == MethodStatus.Good ? MethodResult.Good(json) : MethodResult.Fail(status);
+            }
+            case DDHubMethods.GetResources:
+            {
+                var (status, json) = Queries.GetResourcesAsync(token).GetAwaiter().GetResult();
+                return status == MethodStatus.Good ? MethodResult.Good(json) : MethodResult.Fail(status);
+            }
+            case DDHubMethods.RegisterQuery:
+            {
+                if (string.IsNullOrEmpty(session.Value))
+                {
+                    return MethodResult.Fail(MethodStatus.BadInvalidArgument);
+                }
+                var (status, diff, nodeId) = Queries.RegisterAsync(input[0], session, token).GetAwaiter().GetResult();
+                return status == MethodStatus.Good ? MethodResult.Good(diff, nodeId) : MethodResult.Fail(status);
+            }
+            case DDHubMethods.UnregisterQuery:
+            {
+                var (status, released) = Queries.UnregisterAsync(input[0], session, token).GetAwaiter().GetResult();
+                return status == MethodStatus.Good ? MethodResult.Good(released) : MethodResult.Fail(status);
+            }
             default:
-                // Register and Resolve stay this way (R-BC-2); the query methods come with M4.2.
+                // Register and Resolve: acquisition files are gone (R-BC-2).
                 return MethodResult.Fail(MethodStatus.BadNotSupported);
         }
     }
@@ -172,7 +204,8 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
         bool known;
         lock (_gate) { known = _sessions.Remove(session); }
         Log.SessionClosed(_logger, session.Value, known);
-        // M4.2: release the session's registered queries (ReleaseOwner) and delete its query nodes.
+        // The stack calls this on its own thread while closing the session; the release goes on without it.
+        _ = Queries.SessionClosedAsync(session, _stopping.Token);
     }
 
     private static partial class Log

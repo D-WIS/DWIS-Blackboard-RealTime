@@ -46,7 +46,7 @@ public sealed class InjectionTests : IAsyncDisposable
         var result = _double.Call(DDHubMethods.Inject, new SessionId("s"), Rig);
 
         result.Status.Should().Be(MethodStatus.Good);
-        _semantic.Calls.Should().Equal("list", "list", "prepare", "commit");
+        _semantic.Calls.Where(c => c != "watch").Should().Equal("list", "list", "prepare", "commit");
         _double.Providers.Should().Equal("Acme");
         _double.Variables.Keys.Should().BeEquivalentTo([("Acme", "SPP"), ("Acme", "WOB")]);
         _double.Variables[("Acme", "SPP")].Spec.ValidityVariableId.Should().Be("SPP_validitySignal");
@@ -155,7 +155,7 @@ public sealed class InjectionTests : IAsyncDisposable
         _double.Call(DDHubMethods.Inject, new SessionId("s"), "not json").Status.Should().Be(MethodStatus.BadInvalidArgument);
         _double.Call(DDHubMethods.Inject, new SessionId("s"), Manifest("", "no provider")).Status.Should().Be(MethodStatus.BadInvalidArgument);
         _double.Call(DDHubMethods.Delete, new SessionId("s"), "[]").Status.Should().Be(MethodStatus.BadInvalidArgument);
-        _semantic.Calls.Should().Equal("list", "list");
+        _semantic.Calls.Where(c => c != "watch").Should().Equal("list", "list");
     }
 
     [Fact]
@@ -207,7 +207,7 @@ public sealed class InjectionTests : IAsyncDisposable
         await restarted.StartAsync(TestContext.Current.CancellationToken);
         await restarted.WhenRebuiltAsync();
 
-        first.Calls.Should().EndWith("list", "list");
+        first.Calls.Where(c => c != "watch").Should().EndWith("list", "list");
         _double.Providers.Should().BeEquivalentTo("Acme", "Beta");
         _double.Variables.Keys.Should().BeEquivalentTo([("Acme", "SPP"), ("Acme", "WOB"), ("Beta", "ECD")]);
         _double.Variables[("Acme", "SPP")].Value.Should().Be(1.5);
