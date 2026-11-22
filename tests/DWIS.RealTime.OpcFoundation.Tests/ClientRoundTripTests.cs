@@ -31,6 +31,7 @@ public sealed class ClientRoundTripTests : IClassFixture<ServerFixture>, IAsyncL
 
         var application = new ApplicationInstance { ApplicationName = "DWIS Blackboard test client", ApplicationType = ApplicationType.Client };
         var configuration = await application.Build("urn:d-wis:blackboard:realtime:tests", "https://github.com/D-WIS/DWIS-Blackboard-RealTime")
+            .SetTransportQuotas(ServerHost.TransportQuotas()) // as the old client's configuration file sets
             .AsClient()
             .AddSecurityConfiguration("CN=DWIS Blackboard test client", Path.Combine(Path.GetTempPath(), "dwis-realtime-tests", "client-pki"))
             .SetAutoAcceptUntrustedCertificates(true)
@@ -39,6 +40,20 @@ public sealed class ClientRoundTripTests : IClassFixture<ServerFixture>, IAsyncL
         var endpoint = CoreClientUtils.SelectEndpoint(configuration, _server.EndpointUrl, useSecurity: false);
         var configured = new ConfiguredEndpoint(null, endpoint, EndpointConfiguration.Create(configuration));
         _session = await Session.Create(configuration, configured, updateBeforeConnect: false, "round trip", 60_000, new UserIdentity(new AnonymousIdentityToken()), null, CancellationToken.None);
+    }
+
+    [Fact]
+    public void A_manifest_string_of_several_megabytes_reaches_the_method_as_on_the_old_server()
+    {
+        // The SmartConnect manifest is 600 KB of JSON in one string argument; the stack's defaults refuse the request
+        // before any method runs. The old server allowed 16 MB (R-BC-1): a 3 MB argument must reach the handler,
+        // which answers with its own status (Register is not supported) and not with a transport fault.
+        var objectNode = new NodeId(DDHubMethods.ObjectName, ServerNs);
+        var big = new string('x', 3 * 1024 * 1024);
+
+        var call = () => _session.Call(objectNode, new NodeId(DDHubMethods.Register, ServerNs), new object[] { new[] { big } });
+
+        call.Should().Throw<ServiceResultException>().Which.StatusCode.Should().Be(StatusCodes.BadNotSupported);
     }
 
     public async ValueTask DisposeAsync()

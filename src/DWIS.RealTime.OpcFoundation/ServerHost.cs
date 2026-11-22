@@ -11,6 +11,26 @@ namespace DWIS.RealTime.OpcFoundation;
 /// </summary>
 public sealed partial class ServerHost : IAsyncDisposable
 {
+    /// <summary>The old server's limit for a string, a byte string and a message: 16 MB (R-BC-1). A client sets the same.</summary>
+    public const int TransportLimit = 16 * 1024 * 1024;
+
+    /// <summary>
+    /// The old server's transport quotas (<c>ddhubServerConfiguration.OpcFoundation.xml</c>): a manifest goes through
+    /// <c>Inject</c> as one string, and the SmartConnect one is 600 KB of JSON, more than the stack's defaults allow
+    /// (R-BC-1). The quotas must go into the builder before the server is selected; set afterwards they are ignored.
+    /// </summary>
+    public static TransportQuotas TransportQuotas() => new()
+    {
+        OperationTimeout = 600_000,
+        MaxStringLength = TransportLimit,
+        MaxByteStringLength = TransportLimit,
+        MaxArrayLength = 65535,
+        MaxMessageSize = TransportLimit,
+        MaxBufferSize = 65535,
+        ChannelLifetime = 300_000,
+        SecurityTokenLifetime = 3_600_000,
+    };
+
     private readonly ApplicationInstance _application;
 
     private ServerHost(ApplicationInstance application, BlackboardServer server)
@@ -44,6 +64,7 @@ public sealed partial class ServerHost : IAsyncDisposable
             ApplicationType = ApplicationType.Server,
         };
         var configuration = await application.Build("urn:d-wis:blackboard:realtime", "https://github.com/D-WIS/DWIS-Blackboard-RealTime")
+            .SetTransportQuotas(TransportQuotas())
             .AsServer([endpointUrl])
             .AddUnsecurePolicyNone()
             .AddUserTokenPolicy(UserTokenType.Anonymous)
