@@ -14,8 +14,8 @@ public static class Naming
     /// <summary>The legacy root that OPC UA clients compare namespace URIs against.</summary>
     public const string LegacyRoot = DWIS.Blackboard.Contracts.Namespaces.Legacy;
 
-    /// <summary>The namespace of the <c>DDHubServer</c> object, its methods, its diagnostics and the query nodes; found by name (decision D-56).</summary>
-    public const string DictionariesNamespace = "http://ddhub.no/DDHubDictionaries";
+    /// <summary>The namespace of the <c>DDHubServer</c> object, its methods, its diagnostics and the query nodes (decision D-58). Clients find the object by browse name, not by this name (D-57).</summary>
+    public const string ServerNamespace = "http://ddhub.no/DDHubServer";
 
     /// <summary>The folder that holds one folder per provider.</summary>
     public const string ProvidersFolder = "Providers";

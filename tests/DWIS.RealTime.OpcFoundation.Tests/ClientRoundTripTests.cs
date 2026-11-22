@@ -56,28 +56,28 @@ public sealed class ClientRoundTripTests : IClassFixture<ServerFixture>, IAsyncL
 
     private static readonly object[] EmptyManifest = [new[] { "{}" }];
 
-    private ushort Dictionaries => (ushort)_session.NamespaceUris.GetIndex(Naming.DictionariesNamespace);
+    private ushort ServerNs => (ushort)_session.NamespaceUris.GetIndex(Naming.ServerNamespace);
 
     [Fact]
     public void The_DDHubServer_object_is_found_by_namespace_name_with_its_methods_and_diagnostics()
     {
-        _session.NamespaceUris.GetIndex(Naming.DictionariesNamespace).Should().BeGreaterThan(0, "the namespace is in the server's table");
-        var serverNode = new NodeId(DDHubMethods.ObjectName, Dictionaries);
+        _session.NamespaceUris.GetIndex(Naming.ServerNamespace).Should().BeGreaterThan(0, "the namespace is in the server's table");
+        var serverNode = new NodeId(DDHubMethods.ObjectName, ServerNs);
 
         _session.Browse(null, null, serverNode, 0, BrowseDirection.Forward, ReferenceTypeIds.HierarchicalReferences, true, 0, out _, out var children);
 
         children.Where(c => c.NodeClass == NodeClass.Method).Select(c => c.BrowseName.Name).Should().BeEquivalentTo(DDHubMethods.All.Select(m => m.Name));
         children.Where(c => c.NodeClass == NodeClass.Variable).Select(c => c.BrowseName.Name).Should().BeEquivalentTo(DDHubMethods.RegisteredQueryCount, DDHubMethods.RegisteredQuerySubscriptionCount);
         children.Where(c => c.NodeClass == NodeClass.Object).Select(c => c.BrowseName.Name).Should().BeEquivalentTo(Naming.ProvidersFolder, BlackboardNodeManager.QueriesFolder);
-        _session.ReadValue(new NodeId(DDHubMethods.RegisteredQueryCount, Dictionaries)).Value.Should().Be(0);
+        _session.ReadValue(new NodeId(DDHubMethods.RegisteredQueryCount, ServerNs)).Value.Should().Be(0);
     }
 
     [Fact]
     public void A_method_call_answers_a_status_not_a_fault()
     {
-        var objectNode = new NodeId(DDHubMethods.ObjectName, Dictionaries);
+        var objectNode = new NodeId(DDHubMethods.ObjectName, ServerNs);
 
-        var call = () => _session.Call(objectNode, new NodeId(DDHubMethods.Register, Dictionaries), EmptyManifest);
+        var call = () => _session.Call(objectNode, new NodeId(DDHubMethods.Register, ServerNs), EmptyManifest);
 
         call.Should().Throw<ServiceResultException>().Which.StatusCode.Should().Be(StatusCodes.BadNotSupported);
     }
@@ -85,7 +85,7 @@ public sealed class ClientRoundTripTests : IClassFixture<ServerFixture>, IAsyncL
     [Fact]
     public void The_input_arguments_are_declared_as_the_old_server_declares_them()
     {
-        var inputs = _session.ReadValue(new NodeId(DDHubMethods.Inject + "_InputArguments", Dictionaries)).Value as ExtensionObject[];
+        var inputs = _session.ReadValue(new NodeId(DDHubMethods.Inject + "_InputArguments", ServerNs)).Value as ExtensionObject[];
 
         inputs.Should().NotBeNull().And.HaveCount(1);
         var argument = inputs![0].Body.Should().BeOfType<Argument>().Subject;
@@ -118,6 +118,6 @@ public sealed class ClientRoundTripTests : IClassFixture<ServerFixture>, IAsyncL
 
         adapter.ReadValue("Wire", "Flow")!.Value.Should().Be(7.25);
         _session.ReadValue(new NodeId("Wire.Flow_validitySignal", index)).Value.Should().Be(false);
-        index.Should().BeGreaterThan(Dictionaries, "the provider namespace was claimed at runtime");
+        index.Should().BeGreaterThan(ServerNs, "the provider namespace was claimed at runtime");
     }
 }
