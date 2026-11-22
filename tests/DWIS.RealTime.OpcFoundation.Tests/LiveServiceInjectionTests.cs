@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DWIS.Blackboard.Contracts.Grpc;
 using DWIS.RealTime.Core;
 using DWIS.RealTime.Core.Adapters;
 using DWIS.RealTime.Core.Semantic;
@@ -59,21 +60,32 @@ public sealed class LiveServiceInjectionTests : IClassFixture<ServerFixture>
         var serverNs = (ushort)session.NamespaceUris.GetIndex(Naming.ServerNamespace);
         var objectNode = new NodeId(DDHubMethods.ObjectName, serverNs);
 
-        var outputs = session.Call(objectNode, new NodeId(DDHubMethods.Inject, serverNs), new object[] { new[] { ManifestJson } });
+        try
+        {
+            var outputs = session.Call(objectNode, new NodeId(DDHubMethods.Inject, serverNs), new object[] { new[] { ManifestJson } });
 
-        var json = outputs.Should().ContainSingle().Which.Should().BeOfType<string>().Subject;
-        using var result = JsonDocument.Parse(json);
-        result.RootElement.GetProperty("Success").GetBoolean().Should().BeTrue();
-        var mapping = result.RootElement.GetProperty("ProvidedVariables").EnumerateArray().Single();
-        var variableNode = new NodeId(mapping.GetProperty("InjectedID").GetProperty("ID").GetString(), mapping.GetProperty("InjectedID").GetProperty("NameSpaceIndex").GetUInt16());
-        await session.FetchNamespaceTablesAsync(TestContext.Current.CancellationToken);
-        session.ReadValue(variableNode).Value.Should().Be(12.5);
-        core.Live.Count.Should().BeGreaterThan(0);
+            var json = outputs.Should().ContainSingle().Which.Should().BeOfType<string>().Subject;
+            using var result = JsonDocument.Parse(json);
+            result.RootElement.GetProperty("Success").GetBoolean().Should().BeTrue();
+            // One mapping, for the variable the manifest declares; the validity boolean the service added is a node, not a mapping.
+            var mapping = result.RootElement.GetProperty("ProvidedVariables").EnumerateArray().Should().ContainSingle().Subject;
+            mapping.GetProperty("ManifestItemID").GetString().Should().Be("SPP");
+            var variableNode = new NodeId(mapping.GetProperty("InjectedID").GetProperty("ID").GetString(), mapping.GetProperty("InjectedID").GetProperty("NameSpaceIndex").GetUInt16());
+            await session.FetchNamespaceTablesAsync(TestContext.Current.CancellationToken);
+            session.ReadValue(variableNode).Value.Should().Be(12.5);
+            session.ReadValue(new NodeId("RoundTrip.SPP_validitySignal", variableNode.NamespaceIndex)).Value.Should().Be(false);
+            core.Live.Count.Should().BeGreaterThan(0);
 
-        var deleted = session.Call(objectNode, new NodeId(DDHubMethods.Delete, serverNs), new object[] { new[] { ManifestJson } });
+            var deleted = session.Call(objectNode, new NodeId(DDHubMethods.Delete, serverNs), new object[] { new[] { ManifestJson } });
 
-        deleted.Should().ContainSingle().Which.Should().Be(true);
-        adapter.ReadValue("RoundTrip", "SPP").Should().BeNull();
-        await session.CloseAsync(TestContext.Current.CancellationToken);
+            deleted.Should().ContainSingle().Which.Should().Be(true);
+            adapter.ReadValue("RoundTrip", "SPP").Should().BeNull();
+        }
+        finally
+        {
+            // Leave the service as found, so that a failed run does not fail the next one.
+            await semantic.RemoveAsync(new ManifestRef { Provider = "RoundTrip", Name = "round-trip-signals" }, CancellationToken.None);
+            await session.CloseAsync(CancellationToken.None);
+        }
     }
 }

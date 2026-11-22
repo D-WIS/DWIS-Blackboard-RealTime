@@ -51,11 +51,33 @@ public sealed class InjectionTests : IAsyncDisposable
         _double.Variables.Keys.Should().BeEquivalentTo([("Acme", "SPP"), ("Acme", "WOB")]);
         _double.Variables[("Acme", "SPP")].Spec.ValidityVariableId.Should().Be("SPP_validitySignal");
         _double.Variables[("Acme", "SPP")].Value.Should().Be(1.5);
+        // The service lists the validity booleans as variables of their own and gets an endpoint for each (T-RT-4);
+        // the adapter creates them next to their variable, not a second time.
         var endpoints = _semantic.Live["Acme/rig-signals"].Endpoints;
         endpoints.Select(e => (e.VariableId, e.NamespaceUri, e.NodeId, e.EndpointUrl)).Should().Equal(
             ("SPP", "http://ddhub.no/Acme/Variables/", "Acme.SPP", TestDoubleAdapter.EndpointUrl),
-            ("WOB", "http://ddhub.no/Acme/Variables/", "Acme.WOB", TestDoubleAdapter.EndpointUrl));
+            ("WOB", "http://ddhub.no/Acme/Variables/", "Acme.WOB", TestDoubleAdapter.EndpointUrl),
+            ("SPP_validitySignal", "http://ddhub.no/Acme/Variables/", "Acme.SPP_validitySignal", TestDoubleAdapter.EndpointUrl),
+            ("WOB_validitySignal", "http://ddhub.no/Acme/Variables/", "Acme.WOB_validitySignal", TestDoubleAdapter.EndpointUrl));
         _core.Live.Get(new ManifestKey("Acme", "rig-signals"))!.VariableIds.Should().Equal("SPP", "WOB");
+    }
+
+    [Fact]
+    public async Task A_manifest_that_declares_its_own_validity_booleans_gets_them_once_and_listed_in_the_answer()
+    {
+        // The old client library added the booleans to the manifest before sending it; the old server then created
+        // and listed them as provided variables. Same answer here, and still one node per boolean.
+        await StartAsync();
+        var withFlags = Manifest("Acme", "Rig signals", ("SPP", "double", "1.5"), ("SPP_validitySignal", "bool", "true"), ("WOB", "float", ""), ("WOB_validitySignal", "bool", "true"));
+
+        var result = _double.Call(DDHubMethods.Inject, new SessionId("s"), withFlags);
+
+        result.Status.Should().Be(MethodStatus.Good);
+        _double.Variables.Keys.Should().BeEquivalentTo([("Acme", "SPP"), ("Acme", "WOB")]);
+        _semantic.Live["Acme/rig-signals"].Endpoints.Select(e => e.VariableId).Should().BeEquivalentTo("SPP", "SPP_validitySignal", "WOB", "WOB_validitySignal");
+        using var document = JsonDocument.Parse((string)result.Outputs[0]!);
+        document.RootElement.GetProperty("ProvidedVariables").EnumerateArray().Select(m => m.GetProperty("ManifestItemID").GetString())
+            .Should().Equal("SPP", "SPP_validitySignal", "WOB", "WOB_validitySignal");
     }
 
     [Fact]
