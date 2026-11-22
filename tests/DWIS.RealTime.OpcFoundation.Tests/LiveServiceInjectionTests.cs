@@ -56,10 +56,10 @@ public sealed class LiveServiceInjectionTests : IClassFixture<ServerFixture>
         await application.CheckApplicationInstanceCertificatesAsync(true, null, CancellationToken.None);
         var endpoint = CoreClientUtils.SelectEndpoint(configuration, _server.EndpointUrl, useSecurity: false);
         using var session = await Session.Create(configuration, new ConfiguredEndpoint(null, endpoint, EndpointConfiguration.Create(configuration)), false, "live", 60_000, new UserIdentity(new AnonymousIdentityToken()), null, CancellationToken.None);
-        var dictionaries = (ushort)session.NamespaceUris.GetIndex(Naming.DictionariesNamespace);
-        var objectNode = new NodeId(DDHubMethods.ObjectName, dictionaries);
+        var serverNs = (ushort)session.NamespaceUris.GetIndex(Naming.ServerNamespace);
+        var objectNode = new NodeId(DDHubMethods.ObjectName, serverNs);
 
-        var outputs = session.Call(objectNode, new NodeId(DDHubMethods.Inject, dictionaries), new object[] { new[] { ManifestJson } });
+        var outputs = session.Call(objectNode, new NodeId(DDHubMethods.Inject, serverNs), new object[] { new[] { ManifestJson } });
 
         var json = outputs.Should().ContainSingle().Which.Should().BeOfType<string>().Subject;
         using var result = JsonDocument.Parse(json);
@@ -70,7 +70,7 @@ public sealed class LiveServiceInjectionTests : IClassFixture<ServerFixture>
         session.ReadValue(variableNode).Value.Should().Be(12.5);
         core.Live.Count.Should().BeGreaterThan(0);
 
-        var deleted = session.Call(objectNode, new NodeId(DDHubMethods.Delete, dictionaries), new object[] { new[] { ManifestJson } });
+        var deleted = session.Call(objectNode, new NodeId(DDHubMethods.Delete, serverNs), new object[] { new[] { ManifestJson } });
 
         deleted.Should().ContainSingle().Which.Should().Be(true);
         adapter.ReadValue("RoundTrip", "SPP").Should().BeNull();

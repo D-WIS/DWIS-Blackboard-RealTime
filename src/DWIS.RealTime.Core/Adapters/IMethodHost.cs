@@ -3,7 +3,7 @@ namespace DWIS.RealTime.Core.Adapters;
 /// <summary>
 /// The <c>DDHubServer</c> object with its method nodes and diagnostic variables (specification 3.1, decision D-54).
 /// Implemented by the adapter, called by Core. The adapter owns the fixed facts of the object: its namespace
-/// <see cref="Naming.DictionariesNamespace"/>, the method names and argument declarations of <see cref="DDHubMethods"/>.
+/// <see cref="Naming.ServerNamespace"/>, the method names and argument declarations of <see cref="DDHubMethods"/>.
 /// </summary>
 public interface IMethodHost
 {
