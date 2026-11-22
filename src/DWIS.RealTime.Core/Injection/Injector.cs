@@ -1,4 +1,5 @@
 using DWIS.Blackboard.Contracts.Grpc;
+using DWIS.Blackboard.Contracts.Manifests;
 using DWIS.RealTime.Core.Adapters;
 using DWIS.RealTime.Core.Semantic;
 using Microsoft.Extensions.Logging;
@@ -61,7 +62,7 @@ public sealed partial class Injector : IDisposable
 
             key = ManifestKey.Of(prepared.Manifest);
             var created = new List<string>();
-            List<(string VariableId, NodeAddress Address)> addresses;
+            CreatedNodes addresses;
             try
             {
                 addresses = CreateNodes(key.Provider, prepared.Variables, previous?.VariableIds, created);
@@ -77,13 +78,13 @@ public sealed partial class Injector : IDisposable
             if (prepared.AlreadyLive)
             {
                 // Identical content is live: nothing was staged, no commit; the nodes exist (or were just completed).
-                _live.Set(new LiveManifest(key, prepared.ContentHash, addresses.Select(a => a.VariableId).ToList()));
-                Log.AlreadyLive(_logger, key.Value, addresses.Count);
-                return new Outcome(MethodStatus.Good, InjectionResultJson.Success(key.Provider, addresses));
+                _live.Set(new LiveManifest(key, prepared.ContentHash, addresses.VariableIds));
+                Log.AlreadyLive(_logger, key.Value, addresses.Variables.Count);
+                return new Outcome(MethodStatus.Good, InjectionResultJson.Success(key.Provider, addresses.Declared(manifest)));
             }
 
             var commit = new CommitRequest { Manifest = key.ToRef() };
-            commit.Endpoints.AddRange(addresses.Select(a => new VariableEndpoint { VariableId = a.VariableId, EndpointUrl = a.Address.EndpointUrl, NamespaceUri = a.Address.NamespaceUri, NodeId = a.Address.NodeId }));
+            commit.Endpoints.AddRange(addresses.All.Select(a => new VariableEndpoint { VariableId = a.VariableId, EndpointUrl = a.Address.EndpointUrl, NamespaceUri = a.Address.NamespaceUri, NodeId = a.Address.NodeId }));
             CommitResult committed;
             try
             {
@@ -98,14 +99,14 @@ public sealed partial class Injector : IDisposable
                 return new Outcome(e.Status, InjectionResultJson.Failure());
             }
 
-            var current = addresses.Select(a => a.VariableId).ToList();
+            var current = addresses.VariableIds;
             if (previous is not null)
             {
                 RemoveNodes(key.Provider, previous.VariableIds.Except(current).ToList(), false);
             }
             _live.Set(new LiveManifest(key, prepared.ContentHash, current));
             Log.Injected(_logger, key.Value, committed.Accepted, current.Count, previous is not null);
-            return new Outcome(MethodStatus.Good, InjectionResultJson.Success(key.Provider, addresses));
+            return new Outcome(MethodStatus.Good, InjectionResultJson.Success(key.Provider, addresses.Declared(manifest)));
         }
         finally
         {
@@ -167,7 +168,7 @@ public sealed partial class Injector : IDisposable
                 var key = ManifestKey.Of(summary.Manifest);
                 var created = new List<string>();
                 var addresses = CreateNodes(key.Provider, summary.Variables, null, created);
-                _live.Set(new LiveManifest(key, summary.ContentHash, addresses.Select(a => a.VariableId).ToList()));
+                _live.Set(new LiveManifest(key, summary.ContentHash, addresses.VariableIds));
                 count++;
                 if (created.Count > 0)
                 {
@@ -182,11 +183,38 @@ public sealed partial class Injector : IDisposable
         }
     }
 
-    private List<(string VariableId, NodeAddress Address)> CreateNodes(string provider, IEnumerable<ProvidedVariable> variables, IReadOnlyList<string>? existing, List<string> created)
+    /// <summary>
+    /// The nodes made for a manifest: the variables, each created with its validity boolean by the adapter, and the
+    /// validity booleans themselves, which the service lists as variables of their own (an entry whose id is another
+    /// entry's validity id, with no validity id of its own) and wants an endpoint for.
+    /// </summary>
+    private sealed record CreatedNodes(List<(string VariableId, NodeAddress Address)> Variables, List<(string VariableId, NodeAddress Address)> Flags)
+    {
+        /// <summary>The ids of the variables (not the booleans): what the live table keeps and what a delete removes.</summary>
+        public List<string> VariableIds => Variables.Select(v => v.VariableId).ToList();
+
+        /// <summary>Variables and booleans: what the service gets as endpoints.</summary>
+        public IEnumerable<(string VariableId, NodeAddress Address)> All => Variables.Concat(Flags);
+
+        /// <summary>
+        /// The mappings the client is answered: one per variable the manifest declares, in manifest order, as the old
+        /// server did. A boolean the client put in the manifest itself (the old client library did) is listed; one the
+        /// service added is not.
+        /// </summary>
+        public List<(string VariableId, NodeAddress Address)> Declared(Manifest manifest)
+        {
+            var byId = All.ToDictionary(a => a.VariableId, a => a.Address, StringComparer.Ordinal);
+            return manifest.ProvidedVariables.Where(v => byId.ContainsKey(v.VariableID)).Select(v => (v.VariableID, byId[v.VariableID])).ToList();
+        }
+    }
+
+    private CreatedNodes CreateNodes(string provider, IEnumerable<Blackboard.Contracts.Grpc.ProvidedVariable> variables, IReadOnlyList<string>? existing, List<string> created)
     {
         _space.CreateProviderFolder(provider);
+        var list = variables.ToList();
+        var flagIds = list.Where(v => !string.IsNullOrEmpty(v.ValidityVariableId)).Select(v => v.ValidityVariableId).ToHashSet(StringComparer.Ordinal);
         var addresses = new List<(string, NodeAddress)>();
-        foreach (var variable in variables)
+        foreach (var variable in list.Where(v => !flagIds.Contains(v.VariableId)))
         {
             var spec = new VariableSpec(variable.VariableId, variable.DataType, variable.Rank, [.. variable.Dimensions], variable.InitialValue,
                 string.IsNullOrEmpty(variable.ValidityVariableId) ? variable.VariableId + Naming.ValiditySuffix : variable.ValidityVariableId);
@@ -197,7 +225,8 @@ public sealed partial class Injector : IDisposable
             }
             addresses.Add((variable.VariableId, address));
         }
-        return addresses;
+        var flags = list.Where(v => flagIds.Contains(v.VariableId)).Select(v => (v.VariableId, _space.AddressFor(provider, v.VariableId))).ToList();
+        return new CreatedNodes(addresses, flags);
     }
 
     private void RemoveNodes(string provider, IReadOnlyList<string> variableIds, bool folderToo)

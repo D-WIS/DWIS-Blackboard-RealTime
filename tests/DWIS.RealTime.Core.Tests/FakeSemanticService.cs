@@ -243,12 +243,24 @@ public sealed class FakeSemanticService : ISemanticService
         return row;
     }
 
-    /// <summary>The variables to create for a manifest, as the service's pipeline would answer them.</summary>
-    public static IEnumerable<Blackboard.Contracts.Grpc.ProvidedVariable> VariablesOf(Manifest manifest) =>
-        manifest.ProvidedVariables.Select(v =>
+    /// <summary>
+    /// The variables to create for a manifest, as the service's pipeline answers them (its <c>ManifestPreparation</c>):
+    /// the declared variables in manifest order, each with the id of its validity boolean, then the booleans the
+    /// service added, one per variable that had none, as entries of their own with no validity id. A boolean the
+    /// manifest declares itself (the old client library put them in) is left as declared, with no validity id.
+    /// </summary>
+    public static IEnumerable<Blackboard.Contracts.Grpc.ProvidedVariable> VariablesOf(Manifest manifest)
+    {
+        var ids = manifest.ProvidedVariables.Select(v => v.VariableID).ToHashSet(StringComparer.Ordinal);
+        bool IsFlag(string id) => id.EndsWith(Naming.ValiditySuffix, StringComparison.Ordinal) && ids.Contains(id[..^Naming.ValiditySuffix.Length]);
+        var declared = manifest.ProvidedVariables.Select(v =>
         {
-            var variable = new Blackboard.Contracts.Grpc.ProvidedVariable { VariableId = v.VariableID, DataType = v.DataType ?? "double", Rank = v.Rank, InitialValue = v.InitialValue ?? "", ValidityVariableId = v.VariableID + Naming.ValiditySuffix };
+            var variable = new Blackboard.Contracts.Grpc.ProvidedVariable { VariableId = v.VariableID, DataType = v.DataType ?? "double", Rank = v.Rank, InitialValue = v.InitialValue ?? "", ValidityVariableId = IsFlag(v.VariableID) ? "" : v.VariableID + Naming.ValiditySuffix };
             variable.Dimensions.AddRange(v.Dimensions ?? []);
             return variable;
         });
+        var added = manifest.ProvidedVariables.Where(v => !IsFlag(v.VariableID) && !ids.Contains(v.VariableID + Naming.ValiditySuffix))
+            .Select(v => new Blackboard.Contracts.Grpc.ProvidedVariable { VariableId = v.VariableID + Naming.ValiditySuffix, DataType = "bool", Rank = 0, InitialValue = "true", ValidityVariableId = "" });
+        return declared.Concat(added);
+    }
 }
