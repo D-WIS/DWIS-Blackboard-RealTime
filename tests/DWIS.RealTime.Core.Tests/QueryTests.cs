@@ -52,7 +52,7 @@ public sealed class QueryTests : IAsyncDisposable
         using var document = JsonDocument.Parse((string)result.Outputs[0]!);
         var root = document.RootElement;
         root.EnumerateObject().Select(p => p.Name).Should().Equal("VariablesHeader", "Results", "Count", "IsReadOnly");
-        root.GetProperty("VariablesHeader").EnumerateArray().Select(v => v.GetString()).Should().Equal("dp", "n");
+        root.GetProperty("VariablesHeader").EnumerateArray().Select(v => v.GetString()).Should().Equal("?DP", "?N", "the old server's OWL engine answered the names in upper case with the question mark (T-BC-3)");
         var rows = root.GetProperty("Results").EnumerateArray().ToList();
         rows.Should().HaveCount(2);
         rows[0].EnumerateObject().Select(p => p.Name).Should().Equal("Items", "Count", "IsReadOnly");
