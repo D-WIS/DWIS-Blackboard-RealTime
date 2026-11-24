@@ -21,7 +21,9 @@ public static class QueryJson
     /// <summary>The <c>QueryResult</c> JSON of an answer.</summary>
     public static string Result(IEnumerable<string> variables, IEnumerable<Row> rows)
     {
-        var result = new QueryResultShape { VariablesHeader = variables.ToList(), Results = rows.Select(RowOf).ToList() };
+        // The old server took the column names from its OWL query engine, which answers "?" and the variable's name in
+        // upper case whatever the query says (recorded from digiwells/ddhubserver, T-BC-3): "?SIGNAL" for ?signal.
+        var result = new QueryResultShape { VariablesHeader = variables.Select(v => "?" + v.ToUpperInvariant()).ToList(), Results = rows.Select(RowOf).ToList() };
         return JsonSerializer.Serialize(result, Options);
     }
 
