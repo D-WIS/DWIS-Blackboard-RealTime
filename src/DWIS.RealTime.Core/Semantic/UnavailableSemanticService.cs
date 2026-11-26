@@ -31,7 +31,7 @@ public sealed class UnavailableSemanticService : ISemanticService
     public Task<ResourceFile> GetResourcesAsync(CancellationToken cancellationToken) => throw Down();
 
     /// <inheritdoc />
-    public Task<QuerySnapshot> RegisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken) => throw Down();
+    public Task<QuerySnapshot> RegisterQueryAsync(string sparql, string owner, string watcher, CancellationToken cancellationToken) => throw Down();
 
     /// <inheritdoc />
     public Task<UnregisterResult> UnregisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken) => throw Down();
@@ -40,7 +40,7 @@ public sealed class UnavailableSemanticService : ISemanticService
     public Task<IReadOnlyList<int>> ReleaseOwnerAsync(string owner, CancellationToken cancellationToken) => throw Down();
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<QueryDiff> WatchAsync(string watcher, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<QueryDiff> WatchAsync(string watcher, bool fresh, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await Task.CompletedTask.ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();

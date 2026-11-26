@@ -78,7 +78,7 @@ public sealed partial class QueryFacade
         QuerySnapshot snapshot;
         try
         {
-            snapshot = await _semantic.RegisterQueryAsync(sparql, session.Value, cancellationToken).ConfigureAwait(false);
+            snapshot = await _semantic.RegisterQueryAsync(sparql, session.Value, Watcher, cancellationToken).ConfigureAwait(false);
         }
         catch (SemanticException e)
         {
@@ -168,12 +168,15 @@ public sealed partial class QueryFacade
                 }
                 await ReregisterAllAsync(cancellationToken).ConfigureAwait(false);
             }
+            // Decision D-61: the first stream of this process's life is opened fresh, so that the service releases the
+            // sessions of the life before (they are gone with it); a stream reopened after a drop keeps the registrations.
+            var fresh = firstRound;
             firstRound = false;
             try
             {
                 StreamsOpened++;
-                Log.StreamOpened(_logger, StreamsOpened);
-                await foreach (var diff in _semantic.WatchAsync(Watcher, cancellationToken).ConfigureAwait(false))
+                Log.StreamOpened(_logger, StreamsOpened, fresh);
+                await foreach (var diff in _semantic.WatchAsync(Watcher, fresh, cancellationToken).ConfigureAwait(false))
                 {
                     Deliver(diff);
                 }
@@ -213,7 +216,7 @@ public sealed partial class QueryFacade
             {
                 try
                 {
-                    snapshot = await _semantic.RegisterQueryAsync(entry.Text, session.Value, cancellationToken).ConfigureAwait(false);
+                    snapshot = await _semantic.RegisterQueryAsync(entry.Text, session.Value, Watcher, cancellationToken).ConfigureAwait(false);
                 }
                 catch (SemanticException e)
                 {
@@ -278,8 +281,8 @@ public sealed partial class QueryFacade
         [LoggerMessage(Level = LogLevel.Information, Message = "Session {Session} closed: {HeldCount} queries released here, {GoneCount} gone in the service")]
         public static partial void SessionReleased(ILogger logger, string session, int heldCount, int goneCount);
 
-        [LoggerMessage(Level = LogLevel.Information, Message = "Watch stream {Round} opened")]
-        public static partial void StreamOpened(ILogger logger, int round);
+        [LoggerMessage(Level = LogLevel.Information, Message = "Watch stream {Round} opened (fresh: {Fresh})")]
+        public static partial void StreamOpened(ILogger logger, int round, bool fresh);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Watch stream ended: {Reason}; registering again after the retry delay")]
         public static partial void StreamEnded(ILogger logger, string reason);

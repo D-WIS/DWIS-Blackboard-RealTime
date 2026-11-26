@@ -183,6 +183,32 @@ public sealed class QueryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task The_first_stream_of_a_life_is_fresh_and_releases_the_sessions_of_the_life_before_a_reopened_one_is_not()
+    {
+        // Decision D-61: a session of a previous life of this process still holds a query in the service.
+        await _semantic.RegisterQueryAsync(Spp, "ns=1;i=99", QueryFacade.Watcher, TestContext.Current.CancellationToken);
+        _semantic.IdOf(Spp).Should().NotBe(0);
+
+        await StartAsync();
+
+        await Eventually(() => _core.Queries.StreamsOpened == 1, "the stream is open");
+        _semantic.Openings.Should().Equal((QueryFacade.Watcher, true));
+        _semantic.IdOf(Spp).Should().Be(0, "the ghost session was the only owner, so the query went with the fresh stream");
+        _semantic.WatcherOf.Should().NotContainKey("ns=1;i=99");
+
+        // A registration of this life names this process as its watcher.
+        _double.Call(DDHubMethods.RegisterQuery, A, Spp).Status.Should().Be(MethodStatus.Good);
+        _semantic.WatcherOf[A.Value].Should().Be(QueryFacade.Watcher);
+
+        // A stream reopened after a drop is not fresh: the registration made again stays.
+        _semantic.Restart();
+        await Eventually(() => _core.Queries.StreamsOpened == 2, "the loop opens a new stream after the retry delay");
+        _semantic.Openings.Should().Equal((QueryFacade.Watcher, true), (QueryFacade.Watcher, false));
+        _semantic.WatcherOf[A.Value].Should().Be(QueryFacade.Watcher, "registered again after the restart, under the watcher");
+        _semantic.IdOf(Spp).Should().Be(101);
+    }
+
+    [Fact]
     public async Task Query_methods_fail_fast_while_the_service_is_down()
     {
         _semantic.Down = MethodStatus.BadCommunicationError;
