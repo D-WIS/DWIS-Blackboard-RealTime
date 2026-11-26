@@ -22,6 +22,7 @@ public sealed class FakeSemanticService : ISemanticService
     private readonly Dictionary<string, (Manifest Manifest, string Hash)> _staged = [];
     private readonly Dictionary<string, int> _queryIds = new(StringComparer.Ordinal);
     private readonly Dictionary<int, HashSet<string>> _owners = [];
+    private readonly Dictionary<string, string> _watcherOf = new(StringComparer.Ordinal);
     private Channel<QueryDiff> _stream = Channel.CreateUnbounded<QueryDiff>();
     private int _nextQueryId;
 
@@ -36,6 +37,12 @@ public sealed class FakeSemanticService : ISemanticService
 
     /// <summary>The calls made, in order.</summary>
     public List<string> Calls { get; } = [];
+
+    /// <summary>The watcher each owner registered under (decision D-61).</summary>
+    public IReadOnlyDictionary<string, string> WatcherOf => _watcherOf;
+
+    /// <summary>Every opening of the watch stream: the watcher and whether it was fresh.</summary>
+    public List<(string Watcher, bool Fresh)> Openings { get; } = [];
 
     /// <summary>When set, every call throws with this status (the service is down).</summary>
     public MethodStatus? Down { get; set; }
@@ -150,9 +157,13 @@ public sealed class FakeSemanticService : ISemanticService
     }
 
     /// <inheritdoc />
-    public Task<QuerySnapshot> RegisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken)
+    public Task<QuerySnapshot> RegisterQueryAsync(string sparql, string owner, string watcher, CancellationToken cancellationToken)
     {
         Check("register");
+        if (!string.IsNullOrEmpty(watcher))
+        {
+            _watcherOf[owner] = watcher;
+        }
         if (!_queryIds.TryGetValue(sparql, out var id))
         {
             id = ++_nextQueryId;
@@ -202,9 +213,19 @@ public sealed class FakeSemanticService : ISemanticService
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<QueryDiff> WatchAsync(string watcher, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<QueryDiff> WatchAsync(string watcher, bool fresh, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         Check("watch");
+        Openings.Add((watcher, fresh));
+        if (fresh)
+        {
+            // As the service does (M5.1): every owner of the watcher is released before the first diff.
+            foreach (var owner in _watcherOf.Where(p => p.Value == watcher).Select(p => p.Key).ToList())
+            {
+                _watcherOf.Remove(owner);
+                await ReleaseOwnerAsync(owner, cancellationToken).ConfigureAwait(false);
+            }
+        }
         var stream = _stream;
         await foreach (var diff in stream.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {

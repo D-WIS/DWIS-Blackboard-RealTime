@@ -57,8 +57,8 @@ public sealed class GrpcSemanticService : ISemanticService, IDisposable
         Call(() => _client.GetResourcesAsync(new Empty(), Options(cancellationToken)).ResponseAsync, "GetResources");
 
     /// <inheritdoc />
-    public Task<QuerySnapshot> RegisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken) =>
-        Call(() => _client.RegisterQueryAsync(new RegisterRequest { Query = sparql, Owner = owner }, Options(cancellationToken)).ResponseAsync, "RegisterQuery");
+    public Task<QuerySnapshot> RegisterQueryAsync(string sparql, string owner, string watcher, CancellationToken cancellationToken) =>
+        Call(() => _client.RegisterQueryAsync(new RegisterRequest { Query = sparql, Owner = owner, Watcher = watcher }, Options(cancellationToken)).ResponseAsync, "RegisterQuery");
 
     /// <inheritdoc />
     public Task<UnregisterResult> UnregisterQueryAsync(string sparql, string owner, CancellationToken cancellationToken) =>
@@ -69,10 +69,10 @@ public sealed class GrpcSemanticService : ISemanticService, IDisposable
         (await Call(() => _client.ReleaseOwnerAsync(new OwnerRef { Owner = owner }, Options(cancellationToken)).ResponseAsync, "ReleaseOwner").ConfigureAwait(false)).QueryIds.ToList();
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<QueryDiff> WatchAsync(string watcher, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<QueryDiff> WatchAsync(string watcher, bool fresh, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // No deadline: the stream lives as long as the service and the connection do.
-        using var stream = _client.WatchQueries(new WatchRequest { Watcher = watcher }, cancellationToken: cancellationToken);
+        using var stream = _client.WatchQueries(new WatchRequest { Watcher = watcher, Fresh = fresh }, cancellationToken: cancellationToken);
         var reader = stream.ResponseStream;
         while (true)
         {
