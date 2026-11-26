@@ -90,6 +90,23 @@ public sealed class InjectionTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task A_variable_listed_twice_gets_one_node_and_one_mapping_per_entry()
+    {
+        // The old server's own CLI example lists DownholePressure twice; the service passes both entries through.
+        await StartAsync();
+        var twice = Manifest("Acme", "Rig signals", ("SPP", "double", "1"), ("DownholePressure", "double", "2"), ("DownholePressure", "double", "2"));
+
+        var result = _double.Call(DDHubMethods.Inject, new SessionId("s"), twice);
+
+        result.Status.Should().Be(MethodStatus.Good);
+        _double.Variables.Keys.Should().BeEquivalentTo([("Acme", "SPP"), ("Acme", "DownholePressure")]);
+        _core.Live.Get(new ManifestKey("Acme", "rig-signals"))!.VariableIds.Should().Equal("SPP", "DownholePressure");
+        using var document = JsonDocument.Parse((string)result.Outputs[0]!);
+        var provided = document.RootElement.GetProperty("ProvidedVariables").EnumerateArray().Select(p => p.GetProperty("ManifestItemID").GetString()).ToList();
+        provided.Should().Equal(["SPP", "DownholePressure", "DownholePressure"], "one mapping per manifest entry, as the old server answered");
+    }
+
+    [Fact]
     public async Task A_manifest_that_declares_its_own_validity_booleans_gets_them_once_and_listed_in_the_answer()
     {
         // The old client library added the booleans to the manifest before sending it; the old server then created

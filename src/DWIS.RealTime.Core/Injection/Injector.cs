@@ -204,7 +204,12 @@ public sealed partial class Injector : IDisposable
         public List<(string VariableId, NodeAddress Address)> Declared(Manifest manifest)
         {
             // The service names a variable by its safe id (decision D-62); the result names it as the manifest wrote it.
-            var byId = All.ToDictionary(a => a.VariableId, a => a.Address, StringComparer.Ordinal);
+            // A manifest may list one id twice (the old server's own CLI example does): one node, one mapping per entry.
+            var byId = new Dictionary<string, NodeAddress>(StringComparer.Ordinal);
+            foreach (var (variableId, address) in All)
+            {
+                byId.TryAdd(variableId, address);
+            }
             return manifest.ProvidedVariables.Where(v => byId.ContainsKey(Naming.Safe(v.VariableID))).Select(v => (v.VariableID, byId[Naming.Safe(v.VariableID)])).ToList();
         }
     }
@@ -215,8 +220,13 @@ public sealed partial class Injector : IDisposable
         var list = variables.ToList();
         var flagIds = list.Where(v => !string.IsNullOrEmpty(v.ValidityVariableId)).Select(v => v.ValidityVariableId).ToHashSet(StringComparer.Ordinal);
         var addresses = new List<(string, NodeAddress)>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var variable in list.Where(v => !flagIds.Contains(v.VariableId)))
         {
+            if (!seen.Add(variable.VariableId))
+            {
+                continue; // listed twice in the manifest: one node, created once
+            }
             var spec = new VariableSpec(variable.VariableId, variable.DataType, variable.Rank, [.. variable.Dimensions], variable.InitialValue,
                 string.IsNullOrEmpty(variable.ValidityVariableId) ? variable.VariableId + Naming.ValiditySuffix : variable.ValidityVariableId);
             var address = _space.CreateVariable(provider, spec);
@@ -226,7 +236,7 @@ public sealed partial class Injector : IDisposable
             }
             addresses.Add((variable.VariableId, address));
         }
-        var flags = list.Where(v => flagIds.Contains(v.VariableId)).Select(v => (v.VariableId, _space.AddressFor(provider, v.VariableId))).ToList();
+        var flags = list.Where(v => flagIds.Contains(v.VariableId)).DistinctBy(v => v.VariableId, StringComparer.Ordinal).Select(v => (v.VariableId, _space.AddressFor(provider, v.VariableId))).ToList();
         return new CreatedNodes(addresses, flags);
     }
 
