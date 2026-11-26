@@ -20,14 +20,21 @@ public static class Naming
     /// <summary>The folder that holds one folder per provider.</summary>
     public const string ProvidersFolder = "Providers";
 
-    /// <summary>The namespace of a provider's folder: <c>http://ddhub.no/{provider}/</c>.</summary>
-    public static string ProviderNamespace(string provider) => $"{LegacyRoot}{provider}/";
+    /// <summary>The namespace of a provider's folder: <c>http://ddhub.no/{provider}/</c>, the name made safe (<see cref="Safe"/>).</summary>
+    public static string ProviderNamespace(string provider) => $"{LegacyRoot}{Safe(provider)}/";
 
-    /// <summary>The namespace of a provider's variables: <c>http://ddhub.no/{provider}/Variables/</c>.</summary>
-    public static string VariablesNamespace(string provider) => $"{LegacyRoot}{provider}/Variables/";
+    /// <summary>The namespace of a provider's variables: <c>http://ddhub.no/{provider}/Variables/</c>, the name made safe (<see cref="Safe"/>).</summary>
+    public static string VariablesNamespace(string provider) => $"{LegacyRoot}{Safe(provider)}/Variables/";
 
-    /// <summary>The node id (string part) of a provided variable: <c>{provider}.{VariableID}</c>, exactly as today.</summary>
-    public static string VariableNodeId(string provider, string variableId) => $"{provider}.{variableId}";
+    /// <summary>The node id (string part) of a provided variable: <c>{provider}.{VariableID}</c>, both made safe (<see cref="Safe"/>), otherwise exactly as today.</summary>
+    public static string VariableNodeId(string provider, string variableId) => $"{Safe(provider)}.{Safe(variableId)}";
+
+    /// <summary>
+    /// A name made safe for a namespace URI and a node id (decision D-62, <see cref="DWIS.Blackboard.Contracts.Names.IriSafe"/>):
+    /// a blank or another character an IRI cannot carry becomes an underscore, the same rule the semantic service applies
+    /// to its IRIs, so that a query result names the namespace and node id this process claimed. Browse names stay as written.
+    /// </summary>
+    public static string Safe(string name) => DWIS.Blackboard.Contracts.Names.IriSafe(name);
 
     /// <summary>An IRI as the OPC UA side shows it: the canonical namespace rewritten back to the legacy one (specification 3.6, R-BC-1).</summary>
     public static string ToLegacy(string iri) => DWIS.Blackboard.Contracts.Namespaces.ToLegacy(iri);

@@ -203,8 +203,9 @@ public sealed partial class Injector : IDisposable
         /// </summary>
         public List<(string VariableId, NodeAddress Address)> Declared(Manifest manifest)
         {
+            // The service names a variable by its safe id (decision D-62); the result names it as the manifest wrote it.
             var byId = All.ToDictionary(a => a.VariableId, a => a.Address, StringComparer.Ordinal);
-            return manifest.ProvidedVariables.Where(v => byId.ContainsKey(v.VariableID)).Select(v => (v.VariableID, byId[v.VariableID])).ToList();
+            return manifest.ProvidedVariables.Where(v => byId.ContainsKey(Naming.Safe(v.VariableID))).Select(v => (v.VariableID, byId[Naming.Safe(v.VariableID)])).ToList();
         }
     }
 

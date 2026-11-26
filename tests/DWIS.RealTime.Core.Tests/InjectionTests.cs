@@ -63,6 +63,33 @@ public sealed class InjectionTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task A_name_with_a_blank_is_claimed_with_an_underscore_and_answered_as_written()
+    {
+        // Decision D-62: the old server's own CLI example has the provider "DDHub CLI". The namespaces and node ids
+        // carry the safe form, the same the semantic service puts in its IRIs; the answer names the manifest's own ids.
+        await StartAsync();
+        var cli = Manifest("DDHub CLI", "Simple Example", ("Hook Load", "double", "2"), ("SPP", "double", "1"));
+
+        var result = _double.Call(DDHubMethods.Inject, new SessionId("s"), cli);
+
+        result.Status.Should().Be(MethodStatus.Good);
+        _double.Providers.Should().Equal("DDHub_CLI");
+        _double.Variables.Keys.Should().BeEquivalentTo([("DDHub_CLI", "Hook_Load"), ("DDHub_CLI", "SPP")]);
+        var endpoints = _semantic.Live["DDHub_CLI/simple-example"].Endpoints;
+        endpoints.Select(e => (e.VariableId, e.NamespaceUri, e.NodeId)).Should().Contain(("Hook_Load", "http://ddhub.no/DDHub_CLI/Variables/", "DDHub_CLI.Hook_Load"));
+        using var document = JsonDocument.Parse((string)result.Outputs[0]!);
+        var root = document.RootElement;
+        root.GetProperty("InjectedNodesNamespace").GetString().Should().Be("http://ddhub.no/DDHub_CLI/");
+        root.GetProperty("ProvidedVariablesNamespace").GetString().Should().Be("http://ddhub.no/DDHub_CLI/Variables/");
+        var provided = root.GetProperty("ProvidedVariables").EnumerateArray().ToList();
+        provided.Should().HaveCount(2);
+        provided[0].GetProperty("ManifestItemID").GetString().Should().Be("Hook Load", "the client matches the answer against its own manifest");
+        provided[0].GetProperty("InjectedID").GetProperty("ID").GetString().Should().Be("DDHub_CLI.Hook_Load");
+        _core.Live.Get(new ManifestKey("DDHub_CLI", "simple-example")).Should().NotBeNull();
+        ManifestKey.Of(DWIS.Blackboard.Contracts.Manifests.ManifestJson.Parse(cli))!.Value.Should().Be("DDHub_CLI/simple-example");
+    }
+
+    [Fact]
     public async Task A_manifest_that_declares_its_own_validity_booleans_gets_them_once_and_listed_in_the_answer()
     {
         // The old client library added the booleans to the manifest before sending it; the old server then created

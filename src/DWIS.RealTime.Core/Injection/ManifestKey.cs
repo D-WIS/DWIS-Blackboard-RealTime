@@ -6,9 +6,10 @@ using DWIS.Blackboard.Contracts.Manifests;
 namespace DWIS.RealTime.Core.Injection;
 
 /// <summary>
-/// The id of a manifest as the semantic service forms it (Appendix C.5): the provider name as written, and the
-/// manifest name made safe for a path (lower case, runs of anything but letters and digits replaced by one hyphen).
-/// The same rule as the service's <c>ManifestId</c>, so that the local table and <c>ListManifests</c> agree.
+/// The id of a manifest as the semantic service forms it (Appendix C.5): the provider name made safe for an IRI
+/// (<see cref="Adapters.Naming.Safe"/>, decision D-62: "DDHub CLI" gives <c>DDHub_CLI</c>), and the manifest name
+/// made safe for a path (lower case, runs of anything but letters and digits replaced by one hyphen).
+/// The same rules as the service's <c>ManifestId</c>, so that the local table and <c>ListManifests</c> agree.
 /// </summary>
 public sealed record ManifestKey(string Provider, string Name)
 {
@@ -24,14 +25,14 @@ public sealed record ManifestKey(string Provider, string Name)
             return null;
         }
         var name = Slug(manifest.ManifestName);
-        return name.Length == 0 ? null : new ManifestKey(manifest.Provider.Name, name);
+        return name.Length == 0 ? null : new ManifestKey(Adapters.Naming.Safe(manifest.Provider.Name), name);
     }
 
-    /// <summary>The key of a manifest reference of the contract (the service already made the name safe).</summary>
+    /// <summary>The key of a manifest reference of the contract (the service already made both names safe).</summary>
     public static ManifestKey Of(ManifestRef reference)
     {
         ArgumentNullException.ThrowIfNull(reference);
-        return new ManifestKey(reference.Provider, Slug(reference.Name));
+        return new ManifestKey(Adapters.Naming.Safe(reference.Provider), Slug(reference.Name));
     }
 
     /// <summary>Parses the manifest JSON and gives its key; null when the text is not a manifest or has no names.</summary>

@@ -255,12 +255,13 @@ public sealed class FakeSemanticService : ISemanticService
         bool IsFlag(string id) => id.EndsWith(Naming.ValiditySuffix, StringComparison.Ordinal) && ids.Contains(id[..^Naming.ValiditySuffix.Length]);
         var declared = manifest.ProvidedVariables.Select(v =>
         {
-            var variable = new Blackboard.Contracts.Grpc.ProvidedVariable { VariableId = v.VariableID, DataType = v.DataType ?? "double", Rank = v.Rank, InitialValue = v.InitialValue ?? "", ValidityVariableId = IsFlag(v.VariableID) ? "" : v.VariableID + Naming.ValiditySuffix };
+            // The service names a variable by its safe id (decision D-62), as it reads it back from the IRI.
+            var variable = new Blackboard.Contracts.Grpc.ProvidedVariable { VariableId = Naming.Safe(v.VariableID), DataType = v.DataType ?? "double", Rank = v.Rank, InitialValue = v.InitialValue ?? "", ValidityVariableId = IsFlag(v.VariableID) ? "" : Naming.Safe(v.VariableID) + Naming.ValiditySuffix };
             variable.Dimensions.AddRange(v.Dimensions ?? []);
             return variable;
         });
         var added = manifest.ProvidedVariables.Where(v => !IsFlag(v.VariableID) && !ids.Contains(v.VariableID + Naming.ValiditySuffix))
-            .Select(v => new Blackboard.Contracts.Grpc.ProvidedVariable { VariableId = v.VariableID + Naming.ValiditySuffix, DataType = "bool", Rank = 0, InitialValue = "true", ValidityVariableId = "" });
+            .Select(v => new Blackboard.Contracts.Grpc.ProvidedVariable { VariableId = Naming.Safe(v.VariableID) + Naming.ValiditySuffix, DataType = "bool", Rank = 0, InitialValue = "true", ValidityVariableId = "" });
         return declared.Concat(added);
     }
 }
