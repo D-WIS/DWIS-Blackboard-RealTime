@@ -38,6 +38,9 @@ public sealed class FakeSemanticService : ISemanticService
     /// <summary>The calls made, in order.</summary>
     public List<string> Calls { get; } = [];
 
+    /// <summary>The origin each manifest id was last prepared with.</summary>
+    public Dictionary<string, string> Origins { get; } = new(StringComparer.Ordinal);
+
     /// <summary>The watcher each owner registered under (decision D-61).</summary>
     public IReadOnlyDictionary<string, string> WatcherOf => _watcherOf;
 
@@ -80,6 +83,7 @@ public sealed class FakeSemanticService : ISemanticService
         var key = ManifestKey.Of(manifest) ?? throw new SemanticException(MethodStatus.BadInvalidArgument, "A manifest needs a provider name and a manifest name.");
         var hash = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(request.ManifestJson)));
         var alreadyLive = Live.TryGetValue(key.Value, out var live) && live.Hash == hash;
+        Origins[key.Value] = request.Origin;
         if (!alreadyLive)
         {
             _staged[key.Value] = (manifest, hash);

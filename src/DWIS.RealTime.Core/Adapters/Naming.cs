@@ -36,6 +36,21 @@ public static class Naming
     /// </summary>
     public static string Safe(string name) => DWIS.Blackboard.Contracts.Names.IriSafe(name);
 
+    /// <summary>The provider and variable id behind a variables namespace URI and a node id, as this process names them (the hub role, D-63); null when they are not a provided variable's.</summary>
+    public static (string Provider, string VariableId)? VariableOf(string namespaceUri, string nodeId)
+    {
+        const string suffix = "/Variables/";
+        if (string.IsNullOrEmpty(namespaceUri) || !namespaceUri.StartsWith(LegacyRoot, StringComparison.Ordinal) || !namespaceUri.EndsWith(suffix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+        var provider = namespaceUri[LegacyRoot.Length..^suffix.Length];
+        var prefix = provider + ".";
+        return provider.Length > 0 && nodeId is not null && nodeId.StartsWith(prefix, StringComparison.Ordinal) && nodeId.Length > prefix.Length
+            ? (provider, nodeId[prefix.Length..])
+            : null;
+    }
+
     /// <summary>An IRI as the OPC UA side shows it: the canonical namespace rewritten back to the legacy one (specification 3.6, R-BC-1).</summary>
     public static string ToLegacy(string iri) => DWIS.Blackboard.Contracts.Namespaces.ToLegacy(iri);
 

@@ -12,6 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="../DWIS.RealTime.Core/DWIS.RealTime.Core.csproj" />
     <ProjectReference Include="../DWIS.RealTime.OpcFoundation/DWIS.RealTime.OpcFoundation.csproj" />
+    <ProjectReference Include="../DWIS.RealTime.Hub/DWIS.RealTime.Hub.csproj" />
     <PackageReference Include="DWIS.Blackboard.Configuration" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>

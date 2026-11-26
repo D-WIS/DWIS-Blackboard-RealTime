@@ -3,6 +3,7 @@
     <Project Path="src/DWIS.RealTime.Core/DWIS.RealTime.Core.csproj" />
     <Project Path="src/DWIS.RealTime.OpcFoundation/DWIS.RealTime.OpcFoundation.csproj" />
     <Project Path="src/DWIS.RealTime.StubAdapter/DWIS.RealTime.StubAdapter.csproj" />
+    <Project Path="src/DWIS.RealTime.Hub/DWIS.RealTime.Hub.csproj" />
     <Project Path="src/DWIS.RealTime.Host/DWIS.RealTime.Host.csproj" />
   </Folder>
   <Folder Name="/tests/">
