@@ -1,5 +1,7 @@
 using DWIS.RealTime.Core;
+using DWIS.RealTime.Core.Hub;
 using DWIS.RealTime.Core.Semantic;
+using DWIS.RealTime.Hub;
 using DWIS.RealTime.OpcFoundation;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -38,8 +40,11 @@ public sealed class RealTimeService : IHostedService, IAsyncDisposable
         _server = await ServerHost.StartAsync(_options.EndpointUrl, string.IsNullOrWhiteSpace(_host.PkiRoot) ? null : _host.PkiRoot, _loggers, cancellationToken).ConfigureAwait(false);
         var adapter = _server.NodeManager;
         _semantic = new GrpcSemanticService(_options.SemanticAddress, TimeSpan.FromSeconds(Math.Max(1, _options.DeadlineSeconds)));
-        _core = new RealTimeCore(adapter, adapter, adapter, _semantic, _options, _loggers);
+        // The hub role (section 6, D-63) when a hub URL is set: the SignalR client, the adapter's codec, and the adapter's word on client writes.
+        IHubConnection? hub = _options.Hub.Enabled ? new SignalRHubConnection(_options.Hub.Url, _loggers) : null;
+        _core = new RealTimeCore(adapter, adapter, adapter, _semantic, _options, _loggers, adapter, hub);
         _server.Server.SessionEvents = _core;
+        adapter.ValueEvents = _core.Hub is null ? null : _core;
         await _core.StartAsync(cancellationToken).ConfigureAwait(false);
     }
 

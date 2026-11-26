@@ -32,11 +32,20 @@ public sealed partial class Injector : IDisposable
     /// <summary>The outcome of an injection: the status, and the result JSON when the manifest went live.</summary>
     public sealed record Outcome(MethodStatus Status, string? ResultJson = null, bool Removed = false);
 
+    /// <summary>The origin of a manifest injected here (what the provenance graph records).</summary>
+    public const string LocalOrigin = "local";
+
+    /// <summary>Raised when a manifest went live through this process (not when identical content was live already): its JSON and its origin. The hub role sends the local ones on.</summary>
+    public event Action<string, string>? ManifestLive;
+
     /// <summary>
     /// Inject (or update: the same path, the service replaces a live id) a manifest from its JSON: prepare, create
     /// the nodes, commit; the variables of a previous version that the new one lacks go after the commit.
     /// </summary>
-    public async Task<Outcome> InjectAsync(string manifestJson, CancellationToken cancellationToken = default)
+    public Task<Outcome> InjectAsync(string manifestJson, CancellationToken cancellationToken = default) => InjectAsync(manifestJson, LocalOrigin, cancellationToken);
+
+    /// <summary>Inject with an origin other than local: <c>hub:{group}:{sender}</c> for a peer's manifest (R-HUB-3).</summary>
+    public async Task<Outcome> InjectAsync(string manifestJson, string origin, CancellationToken cancellationToken)
     {
         var (manifest, key) = ManifestKey.Parse(manifestJson);
         if (manifest is null || key is null)
@@ -52,7 +61,7 @@ public sealed partial class Injector : IDisposable
             PrepareResult prepared;
             try
             {
-                prepared = await _semantic.PrepareAsync(new PrepareRequest { ManifestJson = manifestJson, Origin = "local" }, cancellationToken).ConfigureAwait(false);
+                prepared = await _semantic.PrepareAsync(new PrepareRequest { ManifestJson = manifestJson, Origin = origin }, cancellationToken).ConfigureAwait(false);
             }
             catch (SemanticException e)
             {
@@ -106,6 +115,7 @@ public sealed partial class Injector : IDisposable
             }
             _live.Set(new LiveManifest(key, prepared.ContentHash, current));
             Log.Injected(_logger, key.Value, committed.Accepted, current.Count, previous is not null);
+            ManifestLive?.Invoke(manifestJson, origin);
             return new Outcome(MethodStatus.Good, InjectionResultJson.Success(key.Provider, addresses.Declared(manifest)));
         }
         finally

@@ -7,7 +7,7 @@ namespace DWIS.RealTime.StubAdapter;
 /// implemented twice in this repository, once by the OPC Foundation adapter and once here, with nothing but
 /// Core in reach (T-MOD-6). A company starting an adapter for another stack can copy this file as the outline.
 /// </summary>
-public sealed class StubAdapter : IAddressSpace, IMethodHost, IQueryNodes
+public sealed class StubAdapter : IAddressSpace, IMethodHost, IQueryNodes, IReplicationCodec
 {
     private static NotSupportedException NotHere() => new("The stub adapter has no stack behind it (decision D-55).");
 
@@ -46,4 +46,10 @@ public sealed class StubAdapter : IAddressSpace, IMethodHost, IQueryNodes
 
     /// <inheritdoc />
     public void WriteDiff(int queryId, SessionId session, string json) => throw NotHere();
+
+    /// <inheritdoc />
+    public ReplicationBatch Encode(IReadOnlyList<ReplicatedValue> values) => throw NotHere();
+
+    /// <inheritdoc />
+    public IReadOnlyList<ReplicatedValue> Decode(ReplicationBatch batch) => throw NotHere();
 }

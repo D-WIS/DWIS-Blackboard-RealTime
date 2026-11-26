@@ -18,6 +18,9 @@ public sealed class RealTimeOptions
     /// <summary>How long to wait before asking the semantic service again for the list of manifests when it did not answer at start-up (R-RT-6).</summary>
     public int RetrySeconds { get; set; } = 5;
 
+    /// <summary>The hub role (specification section 6, decision D-63): off while <c>Hub:Url</c> is empty.</summary>
+    public Hub.HubOptions Hub { get; set; } = new();
+
     /// <summary>The defaults as configuration keys, for the layers of <c>DWIS.Blackboard.Configuration</c>.</summary>
     public static IReadOnlyDictionary<string, string?> Defaults { get; } = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
     {
@@ -25,5 +28,10 @@ public sealed class RealTimeOptions
         [$"{Section}:DeadlineSeconds"] = "30",
         [$"{Section}:EndpointUrl"] = "opc.tcp://localhost:48030",
         [$"{Section}:RetrySeconds"] = "5",
+        [$"{Section}:Hub:Url"] = "",
+        [$"{Section}:Hub:Group"] = "default",
+        [$"{Section}:Hub:Site"] = "",
+        [$"{Section}:Hub:Password"] = "",
+        [$"{Section}:Hub:BatchMilliseconds"] = "200",
     };
 }

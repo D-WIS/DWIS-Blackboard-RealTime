@@ -288,6 +288,9 @@ public sealed partial class BlackboardNodeManager : CustomNodeManager2, IAddress
                 var index = ClaimNamespace(Naming.VariablesNamespace(provider));
                 var variable = NewVariable(folder, index, Naming.VariableNodeId(provider, spec.VariableId), spec.VariableId, DataTypeOf(spec.DataType), spec.Rank, spec.Dimensions, InitialValue(spec));
                 var validity = NewVariable(folder, index, Naming.VariableNodeId(provider, spec.ValidityVariableId), spec.ValidityVariableId, DataTypeIds.Boolean, 0, [], false);
+                // A client's write is told to Core for the hub role (D-63); Core's own writes go through WriteValue and raise nothing.
+                var variableId = spec.VariableId;
+                variable.OnWriteValue = (ISystemContext _, NodeState _, NumericRange _, QualifiedName _, ref object value, ref StatusCode _, ref DateTime timestamp) => OnClientWrite(provider, variableId, ref value, ref timestamp);
                 _variables[(provider, spec.VariableId)] = (variable, validity);
             }
             return AddressFor(provider, spec.VariableId);

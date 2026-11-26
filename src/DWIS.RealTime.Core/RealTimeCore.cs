@@ -1,4 +1,5 @@
 using DWIS.RealTime.Core.Adapters;
+using DWIS.RealTime.Core.Hub;
 using DWIS.RealTime.Core.Injection;
 using DWIS.RealTime.Core.Queries;
 using DWIS.RealTime.Core.Semantic;
@@ -13,7 +14,7 @@ namespace DWIS.RealTime.Core;
 /// rebuilds the address space from the service at start-up and once more after it (R-RT-6, D-52), keeps one watch
 /// stream open for the query diffs (D-53), keeps the diagnostics, and hears about sessions.
 /// </summary>
-public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
+public sealed partial class RealTimeCore : ISessionEvents, IValueEvents, IAsyncDisposable
 {
     private readonly IAddressSpace _addressSpace;
     private readonly IMethodHost _methods;
@@ -26,8 +27,11 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
     private Task? _rebuild;
     private Task? _watch;
 
-    /// <summary>Creates the core over one adapter (its three interfaces may be one object, as the OPC Foundation adapter is) and the semantic service.</summary>
-    public RealTimeCore(IAddressSpace addressSpace, IMethodHost methods, IQueryNodes queryNodes, ISemanticService? semantic = null, RealTimeOptions? options = null, ILoggerFactory? loggers = null)
+    /// <summary>
+    /// Creates the core over one adapter (its three interfaces may be one object, as the OPC Foundation adapter is) and the
+    /// semantic service. The hub role runs when the options name a hub and the adapter's codec and a hub connection are given (D-63).
+    /// </summary>
+    public RealTimeCore(IAddressSpace addressSpace, IMethodHost methods, IQueryNodes queryNodes, ISemanticService? semantic = null, RealTimeOptions? options = null, ILoggerFactory? loggers = null, IReplicationCodec? codec = null, IHubConnection? hub = null)
     {
         _addressSpace = addressSpace;
         _methods = methods;
@@ -37,6 +41,10 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
         Live = new LiveManifests();
         Injector = new Injector(_addressSpace, _semantic, Live, loggers?.CreateLogger<Injector>());
         Queries = new QueryFacade(queryNodes, methods, _semantic, loggers?.CreateLogger<QueryFacade>());
+        if (_options.Hub.Enabled && codec is not null && hub is not null)
+        {
+            Hub = new HubReplicator(hub, codec, _addressSpace, Injector, _options.Hub, loggers?.CreateLogger<HubReplicator>());
+        }
     }
 
     /// <summary>The settings in force.</summary>
@@ -50,6 +58,9 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
 
     /// <summary>The query side of the façade.</summary>
     public QueryFacade Queries { get; }
+
+    /// <summary>The hub role, or null when no hub is configured (specification section 6).</summary>
+    public HubReplicator? Hub { get; }
 
     /// <summary>True once the first rebuild from the service succeeded (the address space reflects the service).</summary>
     public bool Rebuilt { get; private set; }
@@ -78,6 +89,7 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
         var retry = TimeSpan.FromSeconds(Math.Max(1, _options.RetrySeconds));
         _rebuild = RebuildLoopAsync(retry, _stopping.Token);
         _watch = Queries.WatchLoopAsync(retry, _stopping.Token);
+        Hub?.Start(retry);
         return Task.CompletedTask;
     }
 
@@ -134,6 +146,10 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await StopAsync().ConfigureAwait(false);
+        if (Hub is not null)
+        {
+            await Hub.DisposeAsync().ConfigureAwait(false);
+        }
         Injector.Dispose();
         _stopping.Dispose();
     }
@@ -190,6 +206,9 @@ public sealed partial class RealTimeCore : ISessionEvents, IAsyncDisposable
                 return MethodResult.Fail(MethodStatus.BadNotSupported);
         }
     }
+
+    /// <inheritdoc />
+    public void ValueWritten(string provider, string variableId, object? value, DateTime sourceTimestamp) => Hub?.ValueWritten(provider, variableId, value, sourceTimestamp);
 
     /// <inheritdoc />
     public void SessionOpened(SessionId session)
