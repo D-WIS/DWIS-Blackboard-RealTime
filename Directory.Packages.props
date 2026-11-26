@@ -9,9 +9,9 @@
 
   <ItemGroup>
     <!-- The contracts: the manifest and report shapes, the configuration layers, the gRPC client of the semantic service. -->
-    <PackageVersion Include="DWIS.Blackboard.Contracts" Version="1.0.0-edge.7" />
-    <PackageVersion Include="DWIS.Blackboard.Configuration" Version="1.0.0-edge.7" />
-    <PackageVersion Include="DWIS.Blackboard.Contracts.Grpc" Version="1.0.0-edge.7" />
+    <PackageVersion Include="DWIS.Blackboard.Contracts" Version="1.0.0-edge.8" />
+    <PackageVersion Include="DWIS.Blackboard.Configuration" Version="1.0.0-edge.8" />
+    <PackageVersion Include="DWIS.Blackboard.Contracts.Grpc" Version="1.0.0-edge.8" />
     <PackageVersion Include="Grpc.Net.Client" Version="2.85.0" />
     <!-- The OPC Foundation stack, the version of the old server (decision D-07); only the adapter and the host reference it. -->
     <PackageVersion Include="OPCFoundation.NetStandard.Opc.Ua.Server" Version="1.5.378.156" />
