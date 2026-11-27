@@ -29,7 +29,7 @@
     <PackageVersion Include="xunit.v3" Version="4.0.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.3" />
-    <PackageVersion Include="FluentAssertions" Version="7.2.2" />
+    <PackageVersion Include="FluentAssertions" Version="8.11.0" />
   </ItemGroup>
 
 </Project>
