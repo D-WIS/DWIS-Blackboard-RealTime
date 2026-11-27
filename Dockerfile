@@ -10,7 +10,7 @@ RUN dotnet publish src/DWIS.RealTime.Host/DWIS.RealTime.Host.csproj -c Release -
 
 # The plain runtime image, not the ASP.NET one: the process serves OPC UA, not HTTP. It keeps ICU: the OPC
 # Foundation stack builds its resource texts with named cultures and fails to start in invariant mode.
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:11.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
 # The OPC UA stack keeps its application certificate and its trust stores here (the lab profile accepts any
