@@ -2,7 +2,7 @@
 # on 48030 that talks to the semantic service over gRPC.
 # Build: docker build -t digiwells/dwis.blackboard.realtime:dev .
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 WORKDIR /source
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/ src/
